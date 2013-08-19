@@ -1,6 +1,6 @@
 <html>
   <head>
-    <?php
+    <?php 
     require_once("global.php");  // Define database constants
     ?>
     <title>xss1.php</title>
@@ -10,6 +10,23 @@
     $x = 1;
     require_once("global.php");  // Define database constants
     echo '$x: ' . $x . "<br /";
+
+
+    echo "aalbala {$_POST[ '123' ]}\n";
+    echo "aalbala " . $_POST[ '123' ];
+
+    function a() {
+      global $z;
+
+      $z = $_POST[ '213' ];
+
+      return 1;
+    }
+
+    $z = 1;
+    a();
+
+    echo $z;
 
     global $test1;
     $test1 = 3;
@@ -43,6 +60,7 @@
       $wpdb->query( "delete from " . $wpdb->prefix . "sml where id = '" . $id . "' limit 1" );  //VULNERABILITY
       $count++;
     }
+
 
 //        unset($test2);
 
