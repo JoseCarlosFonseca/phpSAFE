@@ -1,4 +1,5 @@
 <?php
+
 /**
 
   phpSAFE - PHP Security Analysis For Everyone
@@ -24,7 +25,6 @@
   phpSAFE is released under the GPL
 
  */
-
 class Php_File {
 
   /**
@@ -65,46 +65,51 @@ class Php_File {
    */
   function include_php_files( $file_name ) {
     $file_name = realpath( $file_name );
-    $this->php_file_tokens( $file_name );
+    if ( $count = $this->php_file_tokens( $file_name ) ) {
 
-    //TODO use include_paths()
-    $file_path = dirname( $file_name ) . DIRECTORY_SEPARATOR;
-    if ( $this->files_tokens[ $file_name ] ) {
+      //TODO use include_paths()
+      $file_path = dirname( $file_name ) . DIRECTORY_SEPARATOR;
+
       //find T_INCLUDE, T_INCLUDE_ONCE, T_REQUIRE, T_REQUIRE_ONCE within the $files_tokens[$file_name]
-      for ( $i = 0, $count = count( $this->files_tokens[ $file_name ] ); $i < $count; $i++ ) {
-        if ( is_array( $this->files_tokens[ $file_name ][ $i ] ) ) {
-          if ( ( T_INCLUDE === $this->files_tokens[ $file_name ][ $i ][ 0 ] )
-              || ( T_INCLUDE_ONCE === $this->files_tokens[ $file_name ][ $i ][ 0 ] )
-              || ( T_REQUIRE === $this->files_tokens[ $file_name ][ $i ][ 0 ] )
-              || ( T_REQUIRE_ONCE === $this->files_tokens[ $file_name ][ $i ][ 0 ] ) ) {
-            $file_name_include = null;
-            if ( ( '(' === $this->files_tokens[ $file_name ][ $i + 1 ] )
-                && ( T_CONSTANT_ENCAPSED_STRING === $this->files_tokens[ $file_name ][ $i + 2 ][ 0 ] )
-                && ( ')' === $this->files_tokens[ $file_name ][ $i + 3 ] ) ) {
-              //TODO deal with dynamic includes
-              $file_name_include = $this->files_tokens[ $file_name ][ $i + 2 ][ 1 ];
-              $i+=3;
-            } elseif ( (is_array( $this->files_tokens[ $file_name ][ $i + 1 ] ) )
-                && ( T_CONSTANT_ENCAPSED_STRING === $this->files_tokens[ $file_name ][ $i + 1 ][ 0 ] )
-                && ( ';' === $this->files_tokens[ $file_name ][ $i + 2 ] ) ) {
-              //TODO deal with dynamic includes
-              $file_name_include = $this->files_tokens[ $file_name ][ $i + 1 ][ 1 ];
-              $i+=2;
-            }
-            if ( ('"' === substr( $file_name_include, 0, 1 ) ) || ("'" === substr( $file_name_include, 0, 1 ) ) ) {
-              $file_name_include = substr( $file_name_include, 1, -1 );
-            }
-            //only analyze the included file if it has not been anayzed yet
-            $included_files_count = 0;
-            foreach ( $this->files_tokens as $j => $k ) {
-              if ( $j === $file_path . $file_name_include ) {
-                $included_files_count++;
-              }
-            }
-            if ( 0 === $included_files_count ) {
-              //recursive call to itself
-              $this->include_php_files( $file_path . $file_name_include );
-            }
+      for ( $i = 0, $count; $i < $count; $i++ ) {
+        $token=$this->files_tokens[ $file_name ];
+        if ( ( is_array( $token[ $i ] ) )
+            && ( ( T_INCLUDE === $token[ $i ][ 0 ] )
+            || ( T_INCLUDE_ONCE === $token[ $i ][ 0 ] )
+            || ( T_REQUIRE === $token[ $i ][ 0 ] )
+            || ( T_REQUIRE_ONCE === $token[ $i ][ 0 ] ) ) ) {
+          $file_name_include = null;
+
+          // it may have a '( ... )'
+          if ( ( '(' === $token[ $i + 1 ] )
+              && ( T_CONSTANT_ENCAPSED_STRING === $token[ $i + 2 ][ 0 ] )
+              && ( ')' === $token[ $i + 3 ] ) ) {
+            //TODO deal with concatenation
+            $file_name_include = $token[ $i + 2 ][ 1 ];
+            $i+=3;
+
+            // it may have a ';' at the end 
+          } elseif ( (is_array( $token[ $i + 1 ] ) )
+              && ( T_CONSTANT_ENCAPSED_STRING === $token[ $i + 1 ][ 0 ] )
+              && ( ';' === $token[ $i + 2 ] ) ) {
+            //TODO deal with concatenation
+            $file_name_include = $token[ $i + 1 ][ 1 ];
+            $i+=2;
+          } else {
+            //TODO deal with dynamic includes
+            continue;
+          }
+
+          if ( ('"' === substr( $file_name_include, 0, 1 ) ) || ("'" === substr( $file_name_include, 0, 1 ) ) ) {
+            $file_name_include = $file_path . substr( $file_name_include, 1, -1 );
+          } else {
+            $file_name_include = $file_path . $file_name_include;
+          }
+
+          //only analyze the included file if it has not been anayzed yet
+          if ( !in_array( $file_name_include, $this->files_tokens ) ) {
+            //recursive call to itself
+            $this->include_php_files( $file_name_include );
           }
         }
       }
@@ -119,24 +124,27 @@ class Php_File {
    */
   function php_file_tokens( $file_name ) {
     $file_name = realpath( $file_name );
+
     if ( file_exists( $file_name ) ) {
       $file_contents = file_get_contents( $file_name );
       $this->files_tokens[ $file_name ] = token_get_all( $file_contents );
+
       //Remove whitespaces and comments
-      for ( $i = 0, $count = count( $this->files_tokens[ $file_name ] ); $i < $count; $i++ ) {
-        if ( is_array( $this->files_tokens[ $file_name ][ $i ] ) ) {
-          if ( ( T_WHITESPACE === $this->files_tokens[ $file_name ][ $i ][ 0 ] )
-              || ( T_COMMENT === $this->files_tokens[ $file_name ][ $i ][ 0 ] ) ) {
-            //unset the token but keep the indexes untouched
-            unset( $this->files_tokens[ $file_name ][ $i ] );
-          }
+      foreach ( $this->files_tokens[ $file_name ] as $key => $token ) {
+        if ( ( is_array( $token ) ) && ( ( T_WHITESPACE === $token[ 0 ] ) || ( T_COMMENT === $token[ 0 ] ) ) ) {
+          //unset the token but keep the indexes untouched
+          unset( $this->files_tokens[ $file_name ][ $key ] );
         }
       }
+
       //normalize the indexes
       $this->files_tokens[ $file_name ] = array_values( $this->files_tokens[ $file_name ] );
+
+      return(count( $this->files_tokens[ $file_name ] ));
     }
-    else $this->files_tokens[ $file_name ] = null;
+    else return(null);
   }
 
 }
 
+// The ending PHP tag is omitted. This is actually safer than including it.

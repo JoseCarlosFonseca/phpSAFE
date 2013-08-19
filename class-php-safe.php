@@ -1124,3 +1124,5 @@ class PHP_SAFE extends PHP_Parser {
 
 }
 
+
+// The ending PHP tag is omitted. This is actually safer than including it.

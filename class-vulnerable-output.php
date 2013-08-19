@@ -374,3 +374,5 @@ class Vulnerable_Output {
 
 }
 
+
+// The ending PHP tag is omitted. This is actually safer than including it.

@@ -175,3 +175,5 @@ class Vulnerable_Filter {
 
 }
 
+
+// The ending PHP tag is omitted. This is actually safer than including it.
