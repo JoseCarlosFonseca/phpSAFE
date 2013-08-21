@@ -64,6 +64,8 @@ class Vulnerable_Filter {
       'rand',
       'max',
       'min',
+      'strtotime',
+      'date',
     ),
     XSS => array(
       'htmlentities',
@@ -141,6 +143,7 @@ class Vulnerable_Filter {
       'the_title',
       'the_title_attribute',
       'the_title_rss',
+      '$wpdb->escape',
       '$wpdb->insert',
       '$wpdb->prepare',
       '$wpdb->update',
@@ -169,7 +172,6 @@ class Vulnerable_Filter {
     'wpFunctions' => array(
       'wp_specialchars_decode',
       'stripslashes_deep',
-      '$wpdb->escape',
     )
   );
 

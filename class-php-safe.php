@@ -307,7 +307,9 @@ class PHP_SAFE extends PHP_Parser {
 
           //if the variable is tainted, then we have a vulnerability
           if ( TAINTED === $this->parser_variables[ $output_variable_index ][ 'tainted' ] ) {
-            $this->parser_variables[ $output_variable_index ][ 'vulnerability_classification' ] = $vulnerability_classification;
+            if ( !($this->is_variable_filtered( $file_name, $i )) ) {
+              $this->parser_variables[ $output_variable_index ][ 'vulnerability_classification' ] = $vulnerability_classification;
+            }
 
             //if the variable already existed the taint and vulnerability classification should be transferred to the current variable
           } elseif ( !is_null( $variable_index ) ) {
@@ -426,7 +428,7 @@ class PHP_SAFE extends PHP_Parser {
         'output_variable' => REGULAR_VARIABLE,
         'function_name' => $function_name,
         'file_name' => $file_name,
-        'file_line_number' => $this->files->files_tokens[ $file_name ][ $block_start_index -1][ 2 ],
+        'file_line_number' => $this->files->files_tokens[ $file_name ][ $block_start_index - 1 ][ 2 ],
         'tainted' => $expression[ 'tainted' ],
         'vulnerability_classification' => $expression[ 'vulnerability_classification' ],
         'file_tokens_start_index' => $block_start_index,
@@ -702,7 +704,6 @@ class PHP_SAFE extends PHP_Parser {
   function parse_variable_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $variable_name, $variable_scope, $code_type ) {
     $this->debug( sprintf( "%s:%s:%s :: %s", __CLASS__, __METHOD__, __FUNCTION__, serialize( func_get_args() ) ) . '<br />' );
 
-//        $this->debug('OLA 1 !!! $variable_name ' . $variable_name . '<br />');
     if ( !is_null( $variable_name ) && ($variable_name != 'function') ) {
       $line_number = $this->files->files_tokens[ $file_name ][ $block_start_index ][ 2 ];
 
@@ -738,14 +739,11 @@ class PHP_SAFE extends PHP_Parser {
         }
         $variable_scope = $this->parser_variables[ $variable_name_index ][ 'scope' ];
       }
-//            $this->debug('OLA 2 !!! $variable_name ' . $variable_name . ' $tainted '.$tainted.'<br />');
-      // if it is a variable process it. Otherwise leave this function 
       if ( (is_null( $variable_name_index ))
           || ((!is_null( $variable_name_index ))
           && (($this->parser_variables[ $variable_name_index ][ 'file_tokens_start_index' ] != $block_start_index)
           && ($this->parser_variables[ $variable_name_index ][ 'file_tokens_end_index' ] != $block_end_index))) ) {
         //add the variable name, variable used in PHP or outside PHP, input variable?, the function name, the file name and the line number and the taint value, variable classification, and the $parserFileTokens array index
-        //                $this->debug('OLA 3 !!! $variable_name ' . $variable_name . ' $line_number ' . $line_number . ' $block_start_index ' . $block_start_index . '<br />');               
         $this->parser_variables[ ] = array(
           'variable_name' => $variable_name,
           'object_variable_name' => $object_variable_name,
@@ -835,7 +833,6 @@ class PHP_SAFE extends PHP_Parser {
   function parse_unset_vulnerability( $block_end_index, $variable_index ) {
     $this->debug( sprintf( "%s:%s:%s :: %s", __CLASS__, __METHOD__, __FUNCTION__, serialize( func_get_args() ) ) . '<br />' );
 
-    
     $this->parser_variables[ $variable_index ][ 'tainted' ] = UNTAINTED;
     $this->parser_variables[ $variable_index ][ 'exist_destroyed' ] = DESTROYED;
     $this->parser_variables[ $variable_index ][ 'vulnerability_classification' ] = UNKNOWN;
