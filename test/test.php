@@ -6,14 +6,15 @@
     <title>xss1.php</title>
   </head>
   <body>
+    <form id="import-csv" method="post" enctype="multipart/form-data" action="?page=<?=$_GET['page'];?>"> <!--VULNERABILITY-->              
     <?php
     $x = 1;
     require_once("global.php");  // Define database constants
     echo '$x: ' . $x . "<br /";
 
 
-    echo "aalbala {$_POST[ '123' ]}\n";
-    echo "aalbala " . $_POST[ '123' ];
+    echo "aalbala {$_POST[ '123' ]}\n"; //VULNERABILITY
+    echo "aalbala " . $_POST[ '123' ]; //VULNERABILITY
 
     function a() {
       global $z;
@@ -26,7 +27,7 @@
     $z = 1;
     a();
 
-    echo $z;
+    echo $z; //VULNERABILITY
 
     global $test1;
     $test1 = 3;

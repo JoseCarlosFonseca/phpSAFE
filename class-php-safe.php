@@ -58,114 +58,131 @@ class PHP_SAFE extends PHP_Parser {
   /**
    * It is a user defined function so it is parsed
    * 
+   * TODO functions that have arguments that are not variables, like functions or expressions
+   * 
    * note: You define a function with parameters, you call a function with arguments.
    * 
-   * @param string $file_name with the PHP file name that is going to be parsed
-   * @param string $function_name with the name of the function where the code is being executed.
+   * @param string $file_name with the PHP file name of the calling function
+   * @param string $function_name with the name of the function where the code is being executed, the calling function.
    * if the code ise being executed outside any function this argument should take the value 'function', which is the default value.
    * This name was choosen because 'function' is a PHP reserved word, so there won't be any function with that name (which could cause mistakes)
-   * @param string $block_start_index with the start index of tokens of the multi-dimensional array $files_tokens that is going to be parsed
-   * @param string $block_end_index with the start index of tokens of the multi-dimensional array $files_tokens that is going to be parsed
-   * @param string $target_function_name with the name of the function
+   * @param string $called_function_start_index with the start index of tokens of the multi-dimensional array $files_tokens of the calling function
+   * @param string $called_function_end_index with the start index of tokens of the multi-dimensional array $files_tokens of the calling function
+   * @param string $called_function_name with the name of the function, the called function
    */
-  function parse_user_defined_function_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $target_function_name ) {
+  function parse_user_defined_function_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $called_function_name ) {
     $this->debug( sprintf( "%s:%s:%s :: %s", __CLASS__, __METHOD__, __FUNCTION__, serialize( func_get_args() ) ) . '<br />' );
 
-    $start_index = $block_start_index;
-    $end_index = $block_end_index;
-
-    // if it is a user defined function then the code is parsed
+    //get the index of the function in the multi-dimensional array $files_tokens
+    $called_function_index = null;
+    // search for the code of the PHP user defined function
     for ( $i = 0, $count = count( $this->files_functions ); $i < $count; $i++ ) {
-      //note: PHP functions are not case sensitive
-      if ( 0 === strcasecmp( $target_function_name, $this->files_functions[ $i ][ 'function_name' ] ) ) {
-        $file_name = $this->files_functions[ $i ][ 'file_name' ];
-        $block_start_index = $this->files_functions[ $i ][ 'file_tokens_start_index' ];
-        $block_end_index = $this->files_functions[ $i ][ 'file_tokens_end_index' ];
+      //note: user defined PHP functions are not case sensitive
+      if ( 0 === strcasecmp( $called_function_name, $this->files_functions[ $i ][ 'function_name' ] ) ) {
+        $called_function_index = $i;
+        // When the function is found in the the multi-dimensional array $this->files_functions
+        // there is no need to continue searching for more because there is only one function with the same name
+        break;
+      }
+      //there is no need for the else, because the function has to exist when arriving here
+    }
 
-        //add local variables (from the parameters of the function) based on the variables of the arguments
-        $j_count = 0;
-        for ( $j = $start_index; $j < $end_index; $j++ ) {
-          $function_argument = null;
-          if ( $this->is_variable( $file_name, $j ) || $this->is_property( $file_name, $j ) ) {
-            $index = $j;
-            //$index (the $files_tokens index) is passed by reference
-            $function_argument_name = $this->get_variable_name( $file_name, $index );
-            $function_parameter_name = $this->files_functions[ $i ][ 'function_parameters' ][ $j_count ];
-            //add the variable name, variable used in PHP or outside PHP, input variable, the function name, the file name and the line number and the taint value, variable classification, and the $parserFileTokens array index
-            //create a local variable with the name of the parameter and the contents of the argument
-            $variable_index = $this->get_variable_index( $function_argument_name, $function_name );
-            $j = $this->parse_variable( $file_name, $target_function_name, $j );
-            $function_argument_index = $this->get_variable_index( $function_argument_name, $function_name );
-            //If the variable is an object and it is tainted, then the contents of that variable are also tainted
-            $prefix = explode( '->', $function_parameter_name, 2 );
-            $object_variable_name = $prefix[ 0 ];
+    //found the code of the PHP user defined function
+    $called_function_file_name = $this->files_functions[ $called_function_index ][ 'file_name' ];
+    $called_function_start_index = $this->files_functions[ $called_function_index ][ 'file_tokens_start_index' ];
+    $called_function_end_index = $this->files_functions[ $called_function_index ][ 'file_tokens_end_index' ];
 
-            $this->parser_variables[ $function_argument_index ][ 'variable_name' ] = $function_parameter_name;
-            $this->parser_variables[ $function_argument_index ][ 'object_variable_name' ] = $object_variable_name;
-            $this->parser_variables[ $function_argument_index ][ 'function_name' ] = $target_function_name;
-            $this->parser_variables[ $function_argument_index ][ 'tainted' ] = $this->parser_variables[ $variable_index ][ 'tainted' ];
-            //A variable used in an output function is an output variable
-            $this->parser_variables[ $function_argument_index ][ 'output_variable' ] = OUTPUT_VARIABLE;
-          }
-          if ( ',' === $this->files->files_tokens[ $file_name ][ $j ] ) {
-            $j_count++;
-          }
-        }
-        $block_start_index = $this->find_match( $file_name, $block_start_index, '(' );
-        $this->main_parser( $file_name, $target_function_name, $block_start_index, $block_end_index - 1 );
+    //add local variables (from the parameters of the function) based on the variables of the arguments
+    $parameter_number = 0;
+    for ( $i = $block_start_index; $i < $block_end_index; $i++ ) {
+      //get the argument of the call of the function
+      if ( $this->is_variable( $file_name, $i ) || $this->is_property( $file_name, $i ) ) {
+        $index = $i;
+        //$index (the $files_tokens index) is passed by reference
+        $called_function_argument_name = $this->get_variable_property_complete_array_name( $file_name, $index );
+        $called_function_parameter_name = $this->files_functions[ $called_function_index ][ 'function_parameters' ][ $parameter_number ];
+
+        //add the variable name, variable used in PHP or outside PHP, input variable, the function name, the file name and the line number and the taint value, variable classification, and the $parserFileTokens array index
+        //create a local variable with the name of the parameter and the contents of the argument
+        $variable_index = $this->get_variable_index( $called_function_argument_name, $function_name );
+        $i = $this->parse_variable( $file_name, $function_name, $i );
+        $function_argument_index = $this->get_variable_index( $called_function_argument_name, $function_name );
+
+        //If the variable is an object and it is tainted, then the contents of that variable are also tainted
+        //so get the object part of the property
+        $object_variable_name = $this->get_object_property_name( $called_function_parameter_name );
+
+        $this->parser_variables[ $function_argument_index ][ 'variable_name' ] = $called_function_parameter_name;
+        $this->parser_variables[ $function_argument_index ][ 'object_variable_name' ] = $object_variable_name;
+        $this->parser_variables[ $function_argument_index ][ 'function_name' ] = $called_function_name;
+        $this->parser_variables[ $function_argument_index ][ 'tainted' ] = $this->parser_variables[ $variable_index ][ 'tainted' ];
+      } elseif ( ($this->is_function( $called_function_file_name, $i )) || ($this->is_method( $called_function_file_name, $i )) ) {
+        //TODO functions and methods
+      } else {
+        //TODO expression
+      }
+      //TODO if functions and methods and expressions are considered, then the next token has to be a ','
+      //if there is a new argument, there is also a new parameter
+      if ( ',' === $this->files->files_tokens[ $file_name ][ $i ] ) {
+        $parameter_number++;
       }
     }
 
-    //The function is not an output function, but it is not also defined in the code
-    if ( $i === $count ) {
-      for ( $j = $start_index; $j < $end_index; $j++ ) {
-        if ( T_VARIABLE === $this->files->files_tokens[ $file_name ][ $j ][ 0 ] ) {
-          $j = $this->parse_variable( $file_name, $target_function_name, $j );
-        }
-      }
-    }
+    //skip the name of the called function
+    $called_function_start_index = $this->find_match( $called_function_file_name, $called_function_start_index, '(' );
+    //the variables of the parameters of the called function are already created so
+    //parse the contents of the called function
+    //if the function returns a value, a variable for the return value is created with the name of the called function
+    $this->main_parser( $called_function_file_name, $called_function_name, $called_function_start_index, $called_function_end_index );
 
-    //find the last file line number of the function
-    $file_line_number = 1;
-    for ( $j = $end_index; $j >= 0; $j-- ) {
-      if ( is_array( $this->files->files_tokens[ $file_name ][ $j ] ) ) {
-        $file_line_number = $this->files->files_tokens[ $file_name ][ $j ][ 2 ];
+    //find the file line number of the function call
+    $calling_function_file_line_number = $this->files->files_tokens[ $file_name ][ $block_start_index - 1 ][ 2 ];
+
+    //find the last file line number of the called function
+    $called_function_file_line_number = 1;
+    for ( $i = $called_function_end_index; $i >= 0; $i-- ) {
+      if ( is_array( $this->files->files_tokens[ $called_function_file_name ][ $i ] ) ) {
+        $called_function_file_line_number = $this->files->files_tokens[ $called_function_file_name ][ $i ][ 2 ];
         break;
       }
     }
 
-    //unset all the variables used within the function
+    //create a calling function variable from the variable of the return of the called function
+    //create calling function variables from the global variables used in the called function
+    //destroy all the variables used within the function
+    //search for the variables used in the called function
     $count = count( $this->parser_variables );
     for ( $i = $count - 1; $i >= 0; $i-- ) {
-      //note: PHP functions are not case sensitive
-      if ( (0 === strcasecmp( $this->parser_variables[ $i ][ 'function_name' ], $target_function_name ) )
-          && (EXIST === $this->parser_variables[ $i ][ 'exist_destroyed' ] ) ) {
-        $variable_index = $this->get_variable_index( $this->parser_variables[ $i ][ 'variable_name' ], $target_function_name );
-        //it the variable was not yet destroyed, then create a variable destroyed
-        if ( EXIST === $this->parser_variables[ $variable_index ][ 'exist_destroyed' ] ) {
-          if ( $target_function_name === $this->parser_variables[ $i ][ 'variable_name' ] ) {
-            //if the variable that is the return of the function, then a new variable is created
-            //as an untainted variable of the calling function
-            $new_function_name = $function_name;
-            $tainted = $this->parser_variables[ $i ][ 'tainted' ];
-            $exist_destroyed = EXIST;
 
+      //note: PHP functions are not case sensitive
+      if ( (0 === strcasecmp( $this->parser_variables[ $i ][ 'function_name' ], $called_function_name ) )
+          && (EXIST === $this->parser_variables[ $i ][ 'exist_destroyed' ] ) ) {
+        //a variable used in the called function was found
+        //search if a variable of the called function with the same name was already destroyed
+        $variable_index = $this->get_variable_index( $this->parser_variables[ $i ][ 'variable_name' ], $called_function_name );
+
+        //it the variable was not yet destroyed, then destroy it by creating a new variable destroyed
+        if ( EXIST === $this->parser_variables[ $variable_index ][ 'exist_destroyed' ] ) {
+
+          //test if the variable is the return of the called function
+          if ( $called_function_name === $this->parser_variables[ $i ][ 'variable_name' ] ) {
+            //if the variable is the return of the function, then a new variable is created
             $this->parser_variables[ ] = array(
               'variable_name' => $this->parser_variables[ $i ][ 'variable_name' ],
               'object_variable_name' => $this->parser_variables[ $i ][ 'object_variable_name' ],
               'scope' => $this->parser_variables[ $i ][ 'scope' ],
               'variable_function' => $this->parser_variables[ $i ][ 'variable_function' ],
-              'exist_destroyed' => $exist_destroyed,
+              'exist_destroyed' => EXIST,
               'code_type' => $this->parser_variables[ $i ][ 'code_type' ],
               'input_variable' => $this->parser_variables[ $i ][ 'input_variable' ],
               'output_variable' => $this->parser_variables[ $i ][ 'output_variable' ],
-              'function_name' => $new_function_name,
-              'file_name' => $this->parser_variables[ $i ][ 'file_name' ],
-              'file_line_number' => $file_line_number,
-              'tainted' => $tainted,
-              'vulnerability_classification' => UNKNOWN,
-              'file_tokens_start_index' => $end_index,
-              'file_tokens_end_index' => $end_index,
+              'function_name' => $function_name,
+              'file_name' => $file_name,
+              'file_line_number' => $calling_function_file_line_number,
+              'tainted' => $this->parser_variables[ $i ][ 'tainted' ],
+              'vulnerability_classification' => $this->parser_variables[ $i ][ 'vulnerability_classification' ],
+              'file_tokens_start_index' => $block_start_index,
+              'file_tokens_end_index' => $block_end_index,
               'variable_dependencies_index' => array( $i ),
             );
           } elseif ( 'global' === $this->parser_variables[ $i ][ 'scope' ] ) {
@@ -174,55 +191,48 @@ class PHP_SAFE extends PHP_Parser {
 
             $global_variable_index = $this->get_variable_index( $this->parser_variables[ $i ][ 'variable_name' ], $function_name );
             if ( $global_variable_index ) {
-              $new_function_name = $this->parser_variables[ $global_variable_index ][ 'function_name' ];
               $scope = $this->parser_variables[ $global_variable_index ][ 'scope' ];
             } else {
-              $new_function_name = $function_name;
               $scope = 'local';
             }
-            $tainted = $this->parser_variables[ $i ][ 'tainted' ];
-            $exist_destroyed = EXIST;
 
             $this->parser_variables[ ] = array(
               'variable_name' => $this->parser_variables[ $i ][ 'variable_name' ],
               'object_variable_name' => $this->parser_variables[ $i ][ 'object_variable_name' ],
               'scope' => $scope,
               'variable_function' => $this->parser_variables[ $i ][ 'variable_function' ],
-              'exist_destroyed' => $exist_destroyed,
+              'exist_destroyed' => EXIST,
               'code_type' => $this->parser_variables[ $i ][ 'code_type' ],
               'input_variable' => $this->parser_variables[ $i ][ 'input_variable' ],
               'output_variable' => $this->parser_variables[ $i ][ 'output_variable' ],
-              'function_name' => $new_function_name,
-              'file_name' => $this->parser_variables[ $i ][ 'file_name' ],
-              'file_line_number' => $file_line_number,
-              'tainted' => $tainted,
-              'vulnerability_classification' => UNKNOWN,
-              'file_tokens_start_index' => $end_index,
-              'file_tokens_end_index' => $end_index,
+              'function_name' => $function_name,
+              'file_name' => $file_name,
+              'file_line_number' => $calling_function_file_line_number,
+              'tainted' => $this->parser_variables[ $i ][ 'tainted' ],
+              'vulnerability_classification' => $this->parser_variables[ $i ][ 'vulnerability_classification' ],
+              'file_tokens_start_index' => $block_start_index,
+              'file_tokens_end_index' => $block_end_index,
               'variable_dependencies_index' => array( $i ),
             );
           }
 
-          $new_function_name = $this->parser_variables[ $i ][ 'function_name' ];
-          $tainted = UNTAINTED;
-          $exist_destroyed = DESTROYED;
-
+          //destroy the variable of the called function
           $this->parser_variables[ ] = array(
             'variable_name' => $this->parser_variables[ $i ][ 'variable_name' ],
             'object_variable_name' => $this->parser_variables[ $i ][ 'object_variable_name' ],
             'scope' => $this->parser_variables[ $i ][ 'scope' ],
             'variable_function' => $this->parser_variables[ $i ][ 'variable_function' ],
-            'exist_destroyed' => $exist_destroyed,
+            'exist_destroyed' => DESTROYED,
             'code_type' => $this->parser_variables[ $i ][ 'code_type' ],
             'input_variable' => $this->parser_variables[ $i ][ 'input_variable' ],
             'output_variable' => $this->parser_variables[ $i ][ 'output_variable' ],
-            'function_name' => $new_function_name,
+            'function_name' => $called_function_name,
             'file_name' => $this->parser_variables[ $i ][ 'file_name' ],
-            'file_line_number' => $file_line_number,
-            'tainted' => $tainted,
+            'file_line_number' => $called_function_file_line_number,
+            'tainted' => UNTAINTED,
             'vulnerability_classification' => UNKNOWN,
-            'file_tokens_start_index' => $end_index,
-            'file_tokens_end_index' => $end_index,
+            'file_tokens_start_index' => $called_function_end_index,
+            'file_tokens_end_index' => $called_function_end_index,
             'variable_dependencies_index' => array( $i ),
           );
         }
@@ -231,19 +241,23 @@ class PHP_SAFE extends PHP_Parser {
   }
 
   /**
-   * If the function is one of the output functions it is checked for tainted variables that could cause a vulnerability.
+   * If the called function is one of the output functions it is checked for tainted variables that could cause a vulnerability
+   * If the caled function is not one of the output functions nothing is done
+   * The called function is not really parsed because there is no source code
+   * 
+   * TODO functions that have arguments that are not variables, like functions or expressions
    * 
    * note: You define a function with parameters, you call a function with arguments.
    * 
    * @param string $file_name with the PHP file name that is going to be parsed
-   * @param string $function_name with the name of the function where the code is being executed.
+   * @param string $function_name with the name of the function where the code is being executed, the calling function.
    * if the code ise being executed outside any function this argument should take the value 'function', which is the default value.
    * This name was choosen because 'function' is a PHP reserved word, so there won't be any function with that name (which could cause mistakes)
    * @param string $block_start_index with the start index of tokens of the multi-dimensional array $files_tokens that is going to be parsed
    * @param string $block_end_index with the start index of tokens of the multi-dimensional array $files_tokens that is going to be parsed
-   * @param string $target_function_name with the name of the function
+   * @param string $called_function_name with the name of the function, the called function
    */
-  function parse_other_function_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $target_function_name ) {
+  function parse_other_function_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $called_function_name ) {
     $this->debug( sprintf( "%s:%s:%s :: %s", __CLASS__, __METHOD__, __FUNCTION__, serialize( func_get_args() ) ) . '<br />' );
 
     //test if it is one of the output functions
@@ -253,117 +267,121 @@ class PHP_SAFE extends PHP_Parser {
       foreach ( $value as $output_function ) {
         //the name of the function is the same of any one from the $OUTPUT_FUNCTIONS
         //or it is an object method and the name after the -> is the same of any one from the $OUTPUT_FUNCTIONS
-        if ( 0 === strcasecmp( $output_function, $target_function_name ) ) {//note: PHP functions are not case sensitive
+        if ( 0 === strcasecmp( $output_function, $called_function_name ) ) {//note: PHP functions are not case sensitive
           $vulnerability_classification = $key;
+          //an output function can only be responsible for one kind of vulnerability so end the search
+          break;
         }
+      }
+      //an output function can only be responsible for one kind of vulnerability so end the search
+      if ( $key === $vulnerability_classification ) {
+        break;
       }
     }
 
     // if it is one of the output functions. It is not a user defined function, although it could be a WordPress function
     if ( !is_null( $vulnerability_classification ) ) {
+
       //get the variables of the arguments of the function
       for ( $i = $block_start_index; $i < $block_end_index; $i++ ) {
-        if ( is_array( $this->files->files_tokens[ $file_name ][ $i ] ) ) {
-          //if it is a variable
-          if ( ($this->is_variable( $file_name, $i )) || ($this->is_property( $file_name, $i )) ) {
-            //add the variable name, variable used in PHP or outside PHP, input variable, the function name, the file name and the line number and the taint value, variable classification, and the $parserFileTokens array index
-            //create a local variable with the name of the parameter and the contents of the argument
-            $index = $i;
-            //$index (the $files_tokens index) is passed by reference
-            $output_variable_name = $this->get_variable_name( $file_name, $index );
+        //if it is a variable
+        if ( ($this->is_variable( $file_name, $i )) || ($this->is_property( $file_name, $i )) ) {
+          //add the variable name, variable used in PHP or outside PHP, input variable, the function name, the file name and the line number and the taint value, variable classification, and the $parserFileTokens array index
+          //create a local variable with the name of the parameter and the contents of the argument
+          $index = $i;
+          //$index (the $files_tokens index) is passed by reference
+          $output_variable_name = $this->get_variable_property_complete_array_name( $file_name, $index );
 
-            //If the variable is an object get the name of the object
-            $prefix = explode( '->', $output_variable_name, 2 );
-            $variable_index = $this->get_variable_index( $prefix[ 0 ], $function_name );
-            $this->parse_variable( $file_name, $function_name, $i );
-            $output_variable_index = $this->get_variable_index( $output_variable_name, $function_name );
+          //get the index of the existing variable or null if the variable has not yet existed
+          $variable_index = $this->get_object_property_index( $function_name, $output_variable_name );
 
-            if ( is_null( $output_variable_index ) ) {
-              continue;
-            }
+          $this->parse_variable( $file_name, $function_name, $i );
+          $output_variable_index = $this->get_variable_index( $output_variable_name, $function_name );
 
-            //a variable used in an output function is an output variable
-            $this->parser_variables[ $output_variable_index ][ 'output_variable' ] = OUTPUT_VARIABLE;
+          if ( is_null( $output_variable_index ) ) {
+            continue;
+          }
+
+          //a variable used in an output function is an output variable
+          $this->parser_variables[ $output_variable_index ][ 'output_variable' ] = OUTPUT_VARIABLE;
+
+          //if the variable is tainted, then we have a vulnerability
+          if ( TAINTED === $this->parser_variables[ $output_variable_index ][ 'tainted' ] ) {
+            $this->parser_variables[ $output_variable_index ][ 'vulnerability_classification' ] = $vulnerability_classification;
+
+            //if the variable already existed the taint and vulnerability classification should be transferred to the current variable
+          } elseif ( !is_null( $variable_index ) ) {
 
             //if the variable is tainted, then we have a vulnerability
-            if ( TAINTED === $this->parser_variables[ $output_variable_index ][ 'tainted' ] ) {
+            if ( TAINTED === $this->parser_variables[ $variable_index ][ 'tainted' ] ) {
+              $this->parser_variables[ $output_variable_index ][ 'tainted' ] = TAINTED;
               $this->parser_variables[ $output_variable_index ][ 'vulnerability_classification' ] = $vulnerability_classification;
-
-              //if the variable already existed the taint and vulnerability classification should be transferred to the current variable
-            } elseif
-            ( !is_null( $variable_index ) ) {
-
-              //if the variable is tainted, then we have a vulnerability
-              if ( TAINTED === $this->parser_variables[ $variable_index ][ 'tainted' ] ) {
-                $this->parser_variables[ $output_variable_index ][ 'tainted' ] = TAINTED;
-                $this->parser_variables[ $output_variable_index ][ 'vulnerability_classification' ] = $vulnerability_classification;
-              }
             }
-            $i = $index;
+          }
+          $i = $index;
 
-            //if it is a function or a method
-          } elseif ( ($this->is_function( $file_name, $i )) || ($this->is_method( $file_name, $i - 2 )) ) {
-            //in this case, an input function directely in an output function will be considered as a vulnerable variable with the same name of the function
-            //test if it is one of the output functions
-            $input_variable = null;
-            foreach ( Vulnerable_Input::$INPUT_FUNCTIONS as $key => $value ) {//test if it is an input function
-              foreach ( $value as $output_function ) {
-                //note: PHP functions are not case sensitive
-                if ( 0 === strcasecmp( $output_function, $this->get_variable_function_property_method_name( $file_name, $i ) ) ) {
-                  $input_variable = INPUT_VARIABLE;
-                  //check to see if it is an object user defined function
-                  if ( $this->is_method( $file_name, $i - 2 ) ) {
-                    $variable_name = $this->files->files_tokens[ $file_name ][ $i - 2 ][ 1 ] . $this->files->files_tokens[ $file_name ][ $i - 1 ][ 1 ] . $this->files->files_tokens[ $file_name ][ $i ][ 1 ];
-                    $object_variable_name = $this->files->files_tokens[ $file_name ][ $i - 2 ][ 1 ];
-                  } else {
-                    $variable_name = $this->files->files_tokens[ $file_name ][ $i ][ 1 ];
-                    $object_variable_name = null;
-                  }
-                  break;
+          //if it is a function or a method
+        } elseif ( ($this->is_function( $file_name, $i )) || ($this->is_method( $file_name, $i - 2 )) ) {
+          //in this case, an input function directely in an output function will be considered as a vulnerable variable with the same name of the function
+          //test if it is one of the output functions
+          $input_variable = null;
+          foreach ( Vulnerable_Input::$INPUT_FUNCTIONS as $key => $value ) {//test if it is an input function
+            foreach ( $value as $output_function ) {
+              //note: PHP functions are not case sensitive
+              if ( 0 === strcasecmp( $output_function, $this->get_function_method_name( $file_name, $i ) ) ) {
+                $input_variable = INPUT_VARIABLE;
+                //check to see if it is an object user defined function
+                if ( $this->is_method( $file_name, $i - 2 ) ) {
+                  $variable_name = $this->files->files_tokens[ $file_name ][ $i - 2 ][ 1 ] . $this->files->files_tokens[ $file_name ][ $i - 1 ][ 1 ] . $this->files->files_tokens[ $file_name ][ $i ][ 1 ];
+                  $object_variable_name = $this->files->files_tokens[ $file_name ][ $i - 2 ][ 1 ];
+                } else {
+                  $variable_name = $this->files->files_tokens[ $file_name ][ $i ][ 1 ];
+                  $object_variable_name = null;
                 }
-              }
-
-              //add a new variable, which is the return value of the input function
-              if ( !is_null( $input_variable ) ) {
-                $this->parser_variables[ ] = array(
-                  'variable_name' => $variable_name,
-                  'object_variable_name' => $object_variable_name,
-                  'scope' => 'local',
-                  'variable_function' => 'function', //in fact, this is not a variable. It is the return value of a function (an input function)
-                  'exist_destroyed' => EXIST,
-                  'code_type' => PHP_CODE,
-                  'input_variable' => $input_variable,
-                  'output_variable' => OUTPUT_VARIABLE,
-                  'function_name' => $function_name,
-                  'file_name' => $file_name,
-                  'file_line_number' => $this->files->files_tokens[ $file_name ][ $i ][ 2 ],
-                  'tainted' => TAINTED,
-                  'vulnerability_classification' => $vulnerability_classification,
-                  'file_tokens_start_index' => $i,
-                  'file_tokens_end_index' => $i + 2,
-                  'variable_dependencies_index' => null );
                 break;
               }
             }
-            //if it is a usere defined function
-            if ( $this->is_user_defined_function( $file_name, $this->files->files_tokens[ $file_name ][ $i ][ 1 ] ) ) {
-              $this->parse_function( $file_name, $function_name, $i );
-              //search for the return value of the function
-              //the reutrn value used in an output function is an output variable
-              $output_variable_index = $this->get_variable_index( $this->files->files_tokens[ $file_name ][ $i ][ 1 ], $function_name );
 
-              if ( !is_null( $output_variable_index ) ) {
-                $this->parser_variables[ $output_variable_index ][ 'output_variable' ] = OUTPUT_VARIABLE;
-                //if the variable is tainted, then we have a vulnerability
-                if ( TAINTED === $this->parser_variables[ $output_variable_index ][ 'tainted' ] ) {
-                  $this->parser_variables[ $output_variable_index ][ 'vulnerability_classification' ] = $vulnerability_classification;
-                }
+            //add a new variable, which is the return value of the input function
+            if ( !is_null( $input_variable ) ) {
+              $this->parser_variables[ ] = array(
+                'variable_name' => $variable_name,
+                'object_variable_name' => $object_variable_name,
+                'scope' => 'local',
+                'variable_function' => 'function', //in fact, this is not a variable. It is the return value of a function (an input function)
+                'exist_destroyed' => EXIST,
+                'code_type' => PHP_CODE,
+                'input_variable' => $input_variable,
+                'output_variable' => OUTPUT_VARIABLE,
+                'function_name' => $function_name,
+                'file_name' => $file_name,
+                'file_line_number' => $this->files->files_tokens[ $file_name ][ $i ][ 2 ],
+                'tainted' => TAINTED,
+                'vulnerability_classification' => $vulnerability_classification,
+                'file_tokens_start_index' => $i,
+                'file_tokens_end_index' => $i + 2,
+                'variable_dependencies_index' => null );
+              break;
+            }
+          }
+          //if it is a usere defined function
+          if ( $this->is_user_defined_function( $file_name, $this->files->files_tokens[ $file_name ][ $i ][ 1 ] ) ) {
+            $this->parse_function( $file_name, $function_name, $i );
+            //search for the return value of the function
+            //the reutrn value used in an output function is an output variable
+            $output_variable_index = $this->get_variable_index( $this->files->files_tokens[ $file_name ][ $i ][ 1 ], $function_name );
+
+            if ( !is_null( $output_variable_index ) ) {
+              $this->parser_variables[ $output_variable_index ][ 'output_variable' ] = OUTPUT_VARIABLE;
+              //if the variable is tainted, then we have a vulnerability
+              if ( TAINTED === $this->parser_variables[ $output_variable_index ][ 'tainted' ] ) {
+                $this->parser_variables[ $output_variable_index ][ 'vulnerability_classification' ] = $vulnerability_classification;
               }
             }
-
-            //continue to the next argument of the function
-            continue;
           }
+
+          //continue to the next argument of the function
+          continue;
         }
       }
     }
@@ -408,7 +426,7 @@ class PHP_SAFE extends PHP_Parser {
         'output_variable' => REGULAR_VARIABLE,
         'function_name' => $function_name,
         'file_name' => $file_name,
-        'file_line_number' => $this->files->files_tokens[ $file_name ][ $block_start_index ][ 2 ],
+        'file_line_number' => $this->files->files_tokens[ $file_name ][ $block_start_index -1][ 2 ],
         'tainted' => $expression[ 'tainted' ],
         'vulnerability_classification' => $expression[ 'vulnerability_classification' ],
         'file_tokens_start_index' => $block_start_index,
@@ -446,7 +464,7 @@ class PHP_SAFE extends PHP_Parser {
       if ( $this->is_variable( $file_name, $i ) ) {
         $index = $i;
         //$index (the $files_tokens index) is passed by reference. When it is a function it returns the vlue 'function'
-        $variable_name = $this->get_variable_name( $file_name, $index );
+        $variable_name = $this->get_variable_property_complete_array_name( $file_name, $index );
         //add the variable to the multi-dimensional associative array $parser_variables
         $this->parse_variable( $file_name, $function_name, $i );
 
@@ -465,7 +483,7 @@ class PHP_SAFE extends PHP_Parser {
             foreach ( Vulnerable_Input::$INPUT_FUNCTIONS as $key => $value ) {
               foreach ( $value as $output ) {
                 //note: PHP functions are not case sensitive
-                if ( 0 === strcasecmp( $output, $this->get_variable_function_property_method_name( $file_name, $i ) ) ) {
+                if ( 0 === strcasecmp( $output, $this->get_function_method_name( $file_name, $i ) ) ) {
                   $input_variable = INPUT_VARIABLE;
                   break;
                 }
@@ -497,11 +515,11 @@ class PHP_SAFE extends PHP_Parser {
         //the return value of the function is a variable with the name of the function, so it is necessary to know the name of the function
         if ( $this->is_method( $file_name, $i ) ) {
           //it is an object user defined function
-          $target_function_name = $this->get_variable_function_property_method_name( $file_name, $i );
+          $target_function_name = $this->get_function_method_name( $file_name, $i );
           $block_start_index+=2;
         } else {
           //it is an user defined function
-          $target_function_name = $this->get_variable_function_property_method_name( $file_name, $i );
+          $target_function_name = $this->get_function_method_name( $file_name, $i );
         }
 
         //test if it is one of the input functions
@@ -510,7 +528,7 @@ class PHP_SAFE extends PHP_Parser {
         foreach ( Vulnerable_Input::$INPUT_FUNCTIONS as $key => $value ) {
           foreach ( $value as $output ) {
             //note: PHP functions are not case sensitive
-            if ( 0 === strcasecmp( $output, $this->get_variable_function_property_method_name( $file_name, $i ) ) ) {
+            if ( 0 === strcasecmp( $output, $this->get_function_method_name( $file_name, $i ) ) ) {
               $input_variable = INPUT_VARIABLE;
               break;
             }
@@ -548,7 +566,7 @@ class PHP_SAFE extends PHP_Parser {
                   //create a local variable with the name of the parameter and the contents of the argument
                   $jndex = $j;
                   //$jndex (the $files_tokens index) is passed by reference
-                  $output_variable_name = $this->get_variable_name( $file_name, $jndex );
+                  $output_variable_name = $this->get_variable_property_complete_array_name( $file_name, $jndex );
                   $variable_index = $this->get_variable_index( $output_variable_name, $function_name );
                   $this->parse_variable( $file_name, $function_name, $j );
                   $output_variable_index = $this->get_variable_index( $output_variable_name, $function_name );
@@ -625,7 +643,7 @@ class PHP_SAFE extends PHP_Parser {
   function parse_equal_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $variable_index ) {
     $this->debug( sprintf( "%s:%s:%s :: %s", __CLASS__, __METHOD__, __FUNCTION__, serialize( func_get_args() ) ) . '<br />' );
 
-    $expression = $this->parse_expression_vulnerability( $file_name, $function_name, $block_start_index + 1, $block_end_index );
+    $expression = $this->parse_expression_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index );
 
     $this->parser_variables[ $variable_index ][ 'tainted' ] = $expression[ 'tainted' ];
     $this->parser_variables[ $variable_index ][ 'vulnerability_classification' ] = $expression[ 'vulnerability_classification' ];
@@ -649,11 +667,11 @@ class PHP_SAFE extends PHP_Parser {
   function parse_as_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $variable_index ) {
     $this->debug( sprintf( "%s:%s:%s :: %s", __CLASS__, __METHOD__, __FUNCTION__, serialize( func_get_args() ) ) . '<br />' );
 
-    $index = $block_start_index + 1;
+    $index = $block_start_index;
     //$index (the $files_tokens index) is passed by reference. When it is a function it returns the vlue 'function'
-    $new_variable_name = $this->get_variable_name( $file_name, $index );
+    $new_variable_name = $this->get_variable_property_complete_array_name( $file_name, $index );
     //add the variable to the multi-dimensional associative array $parser_variables
-    $this->parse_variable( $file_name, $function_name, $block_start_index + 1 );
+    $this->parse_variable( $file_name, $function_name, $block_start_index );
 
     // $this->get_variable_index return null if there is no variable
     $new_variable_index = $this->get_variable_index( $new_variable_name, $function_name );
@@ -664,7 +682,7 @@ class PHP_SAFE extends PHP_Parser {
   }
 
   /**
-   * Extracts the variable information from the multi-dimensional array $files_tokens 
+   * Extract the variable information from the multi-dimensional array $files_tokens 
    * and stores it in the multi-dimensional associative array $parser_variables
    * Makes a distinction between regular and input variables
    * Taints the input variables
@@ -698,12 +716,10 @@ class PHP_SAFE extends PHP_Parser {
       foreach ( Vulnerable_Input::$INPUT_VARIABLES as $key => $value ) {
         //search for PHP reserved variables
         foreach ( $value as $input_array_var ) {
-//                        $this->debug('$input_array_var: ' . $input_array_var . ' - $token[$i][1]: ' . $token[$i][1] . '<br />');
           //if it is a PHP reserved variables
-          if ( $this->get_variable_function_property_method_name( $file_name, $block_start_index ) === $input_array_var ) {
+          if ( $this->get_variable_property_name( $file_name, $block_start_index ) === $input_array_var ) {
             $input_variable = INPUT_VARIABLE;
             $tainted = TAINTED;
-//                                $this->debug('$variable_name: '.$variable_name.'<br />');
             break;
           }
         }
@@ -711,13 +727,8 @@ class PHP_SAFE extends PHP_Parser {
 
       //find if the variable already exists. In this case the variable is updated
       //If the variable is an object and it is tainted, then the contents of that variable are also tainted
-      $prefix = explode( '->', $variable_name, 2 );
-      if ( $prefix[ 0 ] === $variable_name ) {
-        $object_variable_name = null;
-      } else {
-        $object_variable_name = $prefix[ 0 ];
-      }
-      $variable_name_index = $this->get_variable_index( $prefix[ 0 ], $function_name );
+      $object_variable_name = $this->get_object_property_name( $variable_name );
+      $variable_name_index = $this->get_object_property_index( $function_name, $variable_name );
 
       // if it is a variable process it. Otherwise leave this function 
       if ( !is_null( $variable_name_index ) ) {
@@ -809,7 +820,7 @@ class PHP_SAFE extends PHP_Parser {
   }
 
   /**
-   * Parses unset.
+   * Parse unset.
    * When the variable is unset, PHP destroys the variable.
    * For the vulnerability detection it is the same as being UNTAINTED
    * 
@@ -819,14 +830,15 @@ class PHP_SAFE extends PHP_Parser {
    * This name was choosen because 'function' is a PHP reserved word, so there won't be any function with that name (which could cause mistakes)
    * @param string $block_start_index with the start index of tokens of the multi-dimensional array $files_tokens that is going to be parsed
    * @param string $block_end_index with the end index of tokens the the multi-dimensional array $files_tokens that is going to be parsed
-   * @param string $function_argument_index with the index of tokens the the multi-dimensional array $parser_variables
+   * @param string $variable_index with the index of tokens the the multi-dimensional array $parser_variables
    */
-  function parse_unset_vulnerability( $block_end_index, $function_argument_index ) {
+  function parse_unset_vulnerability( $block_end_index, $variable_index ) {
     $this->debug( sprintf( "%s:%s:%s :: %s", __CLASS__, __METHOD__, __FUNCTION__, serialize( func_get_args() ) ) . '<br />' );
 
-    $this->parser_variables[ $function_argument_index ][ 'tainted' ] = UNTAINTED;
-    $this->parser_variables[ $function_argument_index ][ 'exist_destroyed' ] = DESTROYED;
-    $this->parser_variables[ $function_argument_index ][ 'vulnerability_classification' ] = UNKNOWN;
+    
+    $this->parser_variables[ $variable_index ][ 'tainted' ] = UNTAINTED;
+    $this->parser_variables[ $variable_index ][ 'exist_destroyed' ] = DESTROYED;
+    $this->parser_variables[ $variable_index ][ 'vulnerability_classification' ] = UNKNOWN;
   }
 
   /**
@@ -898,7 +910,7 @@ class PHP_SAFE extends PHP_Parser {
           foreach ( array_merge( Vulnerable_Filter::$VARIABLE_FILTERS, Vulnerable_Filter::$REVERT_VARIABLE_FILTERS ) as $key => $value ) {
             foreach ( $value as $output ) {
               //note: PHP functions are not case sensitive
-              if ( 0 === strcasecmp( $output, $this->get_variable_function_property_method_name( $file_name, $i ) ) ) {
+              if ( 0 === strcasecmp( $output, $this->get_function_method_name( $file_name, $i ) ) ) {
                 $variable_protection_functions[ ] = $output;
                 $found_variable_filter = true;
                 break;
@@ -940,7 +952,7 @@ class PHP_SAFE extends PHP_Parser {
           foreach ( Vulnerable_Filter::$VARIABLE_FILTERS as $key => $value ) {
             foreach ( $value as $output ) {
               //note: PHP functions are not case sensitive
-              if ( 0 === strcasecmp( $output, $this->get_variable_function_property_method_name( $file_name, $i ) ) ) {
+              if ( 0 === strcasecmp( $output, $this->get_function_method_name( $file_name, $i ) ) ) {
                 return true;
               }
             }
@@ -1031,80 +1043,6 @@ class PHP_SAFE extends PHP_Parser {
       $i--;
     } while ( $i > 0 );
     return false;
-  }
-
-  /**
-   * gets the name of the variable by parsing the multi-dimensional associative array $files_tokens
-   * 
-   * @param string $file_name with the PHP file name that is going to be parsed
-   * @param string $file_index passed by reference with the index of the variable in the multi-dimensional array $files_tokens
-   * 
-   * @return the name of the variable and in the $file_index parameter the last index of the variable in the multi-dimensional array $files_tokens
-   */
-  function get_variable_name( $file_name, &$file_index ) {
-    if ( ($this->is_variable( $file_name, $file_index )) || ($this->is_property( $file_name, $file_index )) ) {
-      $variable_name = $this->get_variable_function_property_method_name( $file_name, $file_index );
-      if ( $this->is_variable( $file_name, $file_index ) ) {
-        $file_index++;
-      } else {
-        $file_index = $file_index + 3;
-      }
-      for ( $i = $file_index, $count = count( $this->files->files_tokens[ $file_name ] ); $i < $count - 1; $i++ ) {
-        $add_index = 0;
-        // test to see if it is an array variable
-        if ( '[' === $this->files->files_tokens[ $file_name ][ $i ] ) {
-          $variable_name = $variable_name . $this->files->files_tokens[ $file_name ][ $i ];
-          if ( is_array( $this->files->files_tokens[ $file_name ][ $i + 1 ] ) ) {
-            $variable_name = $variable_name . $this->files->files_tokens[ $file_name ][ $i + 1 ][ 1 ] . $this->files->files_tokens[ $file_name ][ $i + 2 ];
-            $add_index = 2;
-          } else {
-            $variable_name = $variable_name . $this->files->files_tokens[ $file_name ][ $i + 1 ];
-            $add_index = 1;
-          }
-        } elseif ( is_array( $this->files->files_tokens[ $file_name ][ $file_index ] ) ) {
-          if ( $this->is_property( $file_name, $i - 1 ) || $this->is_method( $file_name, $i - 1 ) ) {// test to see if it is an object
-            $variable_name = $this->get_variable_function_property_method_name( $file_name, $i );
-            $add_index = 1;
-            if ( $this->is_method( $file_name, $i - 1 ) ) {
-              //it is not a variable. It is a user defined object function
-              $variable_name = 'function';
-              break;
-            }
-          } else {
-            break;
-          }
-        } else {
-          break;
-        }
-        $i+=$add_index;
-      }
-      $file_index = $i - 1;
-      return $variable_name;
-    } elseif ( ($this->is_function( $file_name, $file_index )) || ($this->is_method( $file_name, $file_index )) ) {
-      return 'function';
-    }
-    return null;
-  }
-
-  /**
-   * Search for the most recent apearence of the variable in the multi-dimensional associative array $parser_variables.
-   * This is done by searching backwards the the multi-dimensional associative array $parser_variables.
-   *
-   * @param string $variable_name with the name of the variable
-   * @param string $function_name with the name of the function where the code is being executed.
-   * 
-   * @return int with the index of the most recent apearence of the variable in the multi-dimensional associative array $parser_variables
-   */
-  function get_variable_index( $variable_name, $function_name ) {
-    $count = count( $this->parser_variables );
-    for ( $i = $count - 1; $i >= 0; $i-- ) {
-      //note: PHP functions are not case sensitive
-      if ( ( $variable_name === $this->parser_variables[ $i ][ 'variable_name' ] )
-          && (0 === strcasecmp( $this->parser_variables[ $i ][ 'function_name' ], $function_name ) ) ) {
-        return $i;
-      }
-    }
-    return null;
   }
 
   /**

@@ -64,8 +64,9 @@ class Php_File {
    * @param string $file_name with the PHP file name that is going to be parsed
    */
   function include_php_files( $file_name ) {
-    $file_name = realpath( $file_name );
-    if ( $count = $this->php_file_tokens( $file_name ) ) {
+    $file_name = realpath(dirname($file_name )). DIRECTORY_SEPARATOR.basename($file_name );
+
+  if ( $count = $this->php_file_tokens( $file_name ) ) {
 
       //TODO use include_paths()
       $file_path = dirname( $file_name ) . DIRECTORY_SEPARATOR;
@@ -99,7 +100,6 @@ class Php_File {
             //TODO deal with dynamic includes
             continue;
           }
-
           if ( ('"' === substr( $file_name_include, 0, 1 ) ) || ("'" === substr( $file_name_include, 0, 1 ) ) ) {
             $file_name_include = $file_path . substr( $file_name_include, 1, -1 );
           } else {
@@ -123,7 +123,7 @@ class Php_File {
    * @param string $file_name with the PHP file name that is going to be parsed
    */
   function php_file_tokens( $file_name ) {
-    $file_name = realpath( $file_name );
+    $file_name = realpath(dirname($file_name )). DIRECTORY_SEPARATOR.basename($file_name );
 
     if ( file_exists( $file_name ) ) {
       $file_contents = file_get_contents( $file_name );
