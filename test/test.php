@@ -62,6 +62,9 @@
         $count++;
       }
 
+      echo "<br />Ola".htmlentities( addslashes( $_POST[ 'user_secret' ] ) )."<br />";
+
+      echo "<br />Ola".not_available( $_POST[ 'user_secret' ] )."<br />";
 
 //        unset($test2);
 

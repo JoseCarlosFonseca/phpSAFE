@@ -333,6 +333,7 @@ class Vulnerable_Output {
       'ftp_nb_put',
       'ftp_put',
       'get_headers',
+      'header',  //added by me
       'imap_open',
       'imap_mail',
       'mail',
