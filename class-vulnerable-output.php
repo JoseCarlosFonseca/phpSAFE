@@ -101,7 +101,7 @@ class Vulnerable_Output {
       'sybase_query',
       'sybase_unbuffered_query',
       //wp functions
-      '$wpdb->query',
+      '$wpdb->query', //added by me
     ),
     FILE_INCLUSION => array(
       'include',
@@ -153,7 +153,7 @@ class Vulnerable_Output {
       'readfile',
       'readgzfile',
       'readlink',
-      'stat',
+      'stat', //uncommented by me
       'scandir',
       'show_source',
       'simplexml_load_file',

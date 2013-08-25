@@ -1088,7 +1088,8 @@ class PHP_Parser {
 
 //search for the match by taking into account the number of pairs of matching tokens
     for ( $i = $block_start_index, $count = count( $this->files->files_tokens[ $file_name ] ); $i < $count; $i++ ) {
-      if ( $open_token === $this->files->files_tokens[ $file_name ][ $i ] ) {
+      if ( ( $open_token === $this->files->files_tokens[ $file_name ][ $i ] )
+          || ((is_array( $this->files->files_tokens[ $file_name ][ $i ] )) && ('{' === $open_token) && (T_CURLY_OPEN === $this->files->files_tokens[ $file_name ][ $i ][ 0 ]) ) ) {
         $count_open++;
       } elseif ( $close_token === $this->files->files_tokens[ $file_name ][ $i ] ) {
         $count_close++;
@@ -1122,8 +1123,13 @@ class PHP_Parser {
       }
 //skip if a pair of (..) or {..} is found
       if ( ( '(' === $this->files->files_tokens[ $file_name ][ $i ] )
-          || ( '{' === $this->files->files_tokens[ $file_name ][ $i ] ) ) {
-        $i = $this->find_match( $file_name, $i, $this->files->files_tokens[ $file_name ][ $i ] );
+          || ( '{' === $this->files->files_tokens[ $file_name ][ $i ] )
+          || ((is_array( $this->files->files_tokens[ $file_name ][ $i ] )) && (T_CURLY_OPEN === $this->files->files_tokens[ $file_name ][ $i ][ 0 ]) ) ) {
+        if ( ((is_array( $this->files->files_tokens[ $file_name ][ $i ] )) && (T_CURLY_OPEN === $this->files->files_tokens[ $file_name ][ $i ][ 0 ]) ) ) {
+          $i = $this->find_match( $file_name, $i, '{' );
+        } else {
+          $i = $this->find_match( $file_name, $i, $this->files->files_tokens[ $file_name ][ $i ] );
+        }
       }
     }
 

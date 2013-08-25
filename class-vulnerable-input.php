@@ -53,7 +53,7 @@ class Vulnerable_Input {
       '$argc',
       '$argv',
     ),
-    'wpVars' => array(
+    'wpVars' => array( //added by me
       'todo',
     )//TODO
   );
@@ -88,7 +88,7 @@ class Vulnerable_Input {
       'mysql_fetch_field',
       'mysql_fetch_object',
       'mysql_fetch_row',
-      'mysql_query',
+      'mysql_query', //added by me
       'pg_fetch_all',
       'pg_fetch_array',
       'pg_fetch_assoc',
@@ -101,7 +101,7 @@ class Vulnerable_Input {
       'sqlite_fetch_single',
       'sqlite_fetch_string',
     ),
-    'wpFunctions' => array(
+    'wpFunctions' => array( //added by me
       '$wpdb->get_col',
       '$wpdb->get_results',
       '$wpdb->get_row',

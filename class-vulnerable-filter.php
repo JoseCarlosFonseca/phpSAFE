@@ -34,38 +34,38 @@ class Vulnerable_Filter {
 //
   static $VARIABLE_FILTERS = array(
     'phpGenericFunctions' => array(
-      'intval',
-      'floatval',
+      'abs',
+      'base64_encode',
+      'bin2hex',
+      'bindec',
+      'count',
+      'crc32',
+      'crypt',
+      'date', //added by me
+      'decbin',
       'doubleval',
       'filter_input',
-      'urlencode',
+      'floatval',
+      'floor',
+      'hash',
+      'hexdec',
+      'hexdec',
+      'intval',
+      'levenshtein',
+      'max',
+      'md5',
+      'min',
+      'ord',
+      'rand',
       'rawurlencode',
       'round',
-      'floor',
-      'strlen',
-      'hexdec',
-      'strrpos',
-      'strpos',
-      'md5',
       'sha1',
-      'crypt',
-      'crc32',
-      'hash',
-      'base64_encode',
-      'ord',
       'sizeof',
-      'count',
-      'bin2hex',
-      'levenshtein',
-      'abs',
-      'bindec',
-      'decbin',
-      'hexdec',
-      'rand',
-      'max',
-      'min',
-      'strtotime',
-      'date',
+      'strlen',
+      'strpos',
+      'strrpos',
+      'strtotime', //added by me
+      'urlencode',
     ),
     XSS => array(
       'htmlentities',
@@ -105,7 +105,7 @@ class Vulnerable_Filter {
 //apply_filters, --I think not
 //see more at: http://codex.wordpress.org/Data_Validation
 //see more at: http://fieldguide.automattic.com/avoiding-xss/
-    'wpFunctions' => array(
+    'wpFunctions' => array( //added by me
       'add_query_arg',
       'addslashes_gpc',
       'antispambot',
@@ -166,10 +166,10 @@ class Vulnerable_Filter {
     )
   );
   static $REVERT_VARIABLE_FILTERS = array(
-    'phpFunctions' => array(
+    'phpFunctions' => array( //added by me
       'stripslashes',
     ),
-    'wpFunctions' => array(
+    'wpFunctions' => array( //added by me
       'wp_specialchars_decode',
       'stripslashes_deep',
     )
