@@ -62,9 +62,15 @@
         $count++;
       }
 
-      echo "<br />Ola".htmlentities( addslashes( $_POST[ 'user_secret' ] ) )."<br />";
+      foreach ( get_option( "ethoseo_gau_properties" ) as $property ) {
+        if ( !$property[ 'roles' ][ get_user_role( $current_user->id ) ] ) {
+          
+        }
+      }
 
-      echo "<br />Ola".not_available( $_POST[ 'user_secret' ] )."<br />";
+      echo "<br />Ola" . htmlentities( addslashes( $_POST[ 'user_secret' ] ) ) . "<br />";
+
+      echo "<br />Ola" . not_available( $_POST[ 'user_secret' ] ) . "<br />";
 
 //        unset($test2);
 
@@ -99,6 +105,8 @@ _END;
       <h1><?php $test2 ?></h1>  <!--VULNERABILITY-->
   </body>
 </html>
-<?php if ( $_GET[ 'editad' ] != '' ) {
+<?php
+if ( $_GET[ 'editad' ] != '' ) {
   echo '<input name="editedad" type="hidden" value="' . intval( $_GET[ 'editad' ] ) . '" />';
-} ?>
+}
+?>
