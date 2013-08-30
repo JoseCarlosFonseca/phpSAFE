@@ -72,6 +72,9 @@
 
       echo "<br />Ola" . not_available( $_POST[ 'user_secret' ] ) . "<br />";
 
+        $poll = $this->pollDB->getPollDB( $id );
+
+        
 //        unset($test2);
 
       echo "<br />Ola$test2<br />";  //VULNERABILITY
@@ -83,13 +86,13 @@
       for ( $j = 0; $j < 10; $j++ )
         echo '$j= ' . $j . '<br />';
 
-      function show_names( $a, $b, $c, $d ) {
-        echo "<br />$a<br />";
-        echo "<br />$b<br />";  //VULNERABILITY
-        echo "<br />$c<br />";
-        echo "<br />$d<br />";
-        return $a . $b . $c . $d;
-      }
+//      function show_names( $a, $b, $c, $d ) {
+//        echo "<br />$a<br />";
+//        echo "<br />$b<br />";  //VULNERABILITY
+//        echo "<br />$c<br />";
+//        echo "<br />$d<br />";
+//        return $a . $b . $c . $d;
+//      }
 
       function show_names2( $a, $c, $d ) {
         echo "<br />$a<br />";

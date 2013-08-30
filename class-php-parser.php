@@ -132,10 +132,19 @@ class PHP_Parser {
       if ( ( T_ECHO === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] )
           || ( T_PRINT === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] )
           || ( T_EXIT === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] )
+          || ( T_INT_CAST === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] )
+          || ( T_DOUBLE_CAST === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] )
+          || ( T_STRING_CAST === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] )
+          || ( T_ARRAY_CAST === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] )
+          || ( T_OBJECT_CAST === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] )
+          || ( T_BOOL_CAST === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] )
+          || ( T_UNSET_CAST === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] )
           || ($this->is_function( $file_name, $i ))
           || ($this->is_method( $file_name, $i )) ) {
         //calculate the end token of the function call        
         $called_function_name = $this->get_function_method_name( $file_name, $i );
+        $i = $this->get_variable_property_function_method_last_index( $file_name, $i );
+
         $called_functions[ ] = array(
           'name' => $called_function_name,
           'file_line_number' => $this->files->files_tokens[ $file_name ][ $i ][ 2 ],
@@ -175,9 +184,10 @@ class PHP_Parser {
       //Start of a function definition
       if ( is_array( $this->files->files_tokens[ $file_name ][ $i ] )
           && (T_FUNCTION === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] ) ) {
-        $function_name = $this->get_function_method_name( $file_name, $i + 1 );
-
         $file_token_start_function_index = $i;
+        $function_name = $this->get_function_method_name( $file_name, $i + 1 );
+        $i = $this->get_variable_property_function_method_last_index( $file_name, $i + 1 );
+
         $file_start_function_line = $this->files->files_tokens[ $file_name ][ $i ][ 2 ];
 
         $file_token_end_function_index = $this->find_match( $file_name, $i, '{' );
@@ -202,6 +212,13 @@ class PHP_Parser {
           if ( ( T_ECHO === $this->files->files_tokens[ $file_name ][ $j ][ 0 ] )
               || ( T_PRINT === $this->files->files_tokens[ $file_name ][ $j ][ 0 ] )
               || ( T_EXIT === $this->files->files_tokens[ $file_name ][ $j ][ 0 ] )
+              || ( T_INT_CAST === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] )
+              || ( T_DOUBLE_CAST === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] )
+              || ( T_STRING_CAST === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] )
+              || ( T_ARRAY_CAST === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] )
+              || ( T_OBJECT_CAST === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] )
+              || ( T_BOOL_CAST === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] )
+              || ( T_UNSET_CAST === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] )
               || ($this->is_function( $file_name, $j ))
               || ($this->is_method( $file_name, $j )) ) {
             //calculate the end token of the function call        
@@ -216,6 +233,7 @@ class PHP_Parser {
               'revert_filter' => 'not revert filter',
               'other' => 'other',
             );
+            $j = $this->get_variable_property_function_method_last_index( $file_name, $j );
           } elseif ( T_FUNCTION === $this->files->files_tokens[ $file_name ][ $j ][ 0 ] ) {
             //skip this token
             $j = $this->find_match( $file_name, $j, '{' );
@@ -391,7 +409,14 @@ class PHP_Parser {
 //Output
         } elseif ( ( T_ECHO === $token[ $i ][ 0 ] )
             || ( T_PRINT === $token[ $i ][ 0 ] )
-            || ( T_EXIT === $token[ $i ][ 0 ] ) ) {
+            || ( T_EXIT === $token[ $i ][ 0 ] )
+            || ( T_INT_CAST === $token[ $i ][ 0 ] )
+            || ( T_DOUBLE_CAST === $token[ $i ][ 0 ] )
+            || ( T_STRING_CAST === $token[ $i ][ 0 ] )
+            || ( T_ARRAY_CAST === $token[ $i ][ 0 ] )
+            || ( T_OBJECT_CAST === $token[ $i ][ 0 ] )
+            || ( T_BOOL_CAST === $token[ $i ][ 0 ] )
+            || ( T_UNSET_CAST === $token[ $i ][ 0 ] ) ) {
           $i = $this->parse_function( $file_name, $function_name, $i );
 
 //function call
@@ -412,6 +437,7 @@ class PHP_Parser {
 //local and global variables
         } elseif ( ( T_VARIABLE === $token[ $i ][ 0 ] )
             || ( T_GLOBAL === $token[ $i ][ 0 ] )
+            || ( T_CONST === $token[ $i ][ 0 ] )
             || (($this->is_variable( $file_name, $i ))
             || ($this->is_property( $file_name, $i ))) ) {
           $i = $this->parse_variable( $file_name, $function_name, $i );
@@ -429,10 +455,6 @@ class PHP_Parser {
             || ( T_SL_EQUAL === $token[ $i ][ 0 ])
             || ( T_SR_EQUAL === $token[ $i ][ 0 ] ) ) {
           $i = $this->parse_equal( $file_name, $function_name, $i );
-
-//AS functioning as an equal sign
-        } elseif ( T_AS === $token[ $i ][ 0 ] ) {
-          $i = $this->parse_as( $file_name, $function_name, $i );
 
 //T_UNSET
         } elseif ( T_UNSET === $token[ $i ][ 0 ] ) {
@@ -512,7 +534,7 @@ class PHP_Parser {
     if ( '(' === $this->files->files_tokens[ $file_name ][ $block_start_index ] ) {
       $block_end_index = $this->find_match( $file_name, $block_start_index, '(' );
     } else {
-      $block_end_index = $this->find_token( $file_name, $block_start_index, ';' );
+      $block_end_index = $this->end_of_php_line( $file_name, $block_start_index );
     }
 
     $block_start_index++;
@@ -541,7 +563,7 @@ class PHP_Parser {
       $block_end_index = $this->find_match( $file_name, $block_start_index, '(' );
       $block_start_index++;
     } else {
-      $block_end_index = $this->find_token( $file_name, $block_start_index, ';' );
+      $block_end_index = $this->end_of_php_line( $file_name, $block_start_index );
     }
 
 
@@ -563,15 +585,43 @@ class PHP_Parser {
         $v = $block_start_index;
         //$v is passed by reference
         $variable_before_as_name = $this->get_variable_property_complete_array_name( $file_name, $v );
+      } elseif ( ( is_array( $this->files->files_tokens[ $file_name ][ $block_start_index ] ) )
+          && ( ( $this->is_function( $file_name, $block_start_index ) ) || ( $this->is_method( $file_name, $block_start_index ) ) ) ) {
+        //TODO
+        $v = $block_start_index;
+        //$v is passed by reference
+        $variable_before_as_name = $this->get_variable_property_complete_array_name( $file_name, $v );
       } else {
         //TODO
       }
 
-      $variable_before_as_index = $this->get_variable_index( $variable_before_as_name, $function_name );
+      $variable_before_as_index = $this->get_variable_index( $file_name, $variable_before_as_name, $function_name );
 
-      $this->parse_as_vulnerability( $file_name, $function_name, $block_as_index + 1, $block_end_index, $variable_before_as_index );
+      $this->parse_foreach_vulnerability( $file_name, $function_name, $block_as_index + 1, $block_end_index, $variable_before_as_index );
     }
     return $block_end_index;
+  }
+
+  /**
+   * Verify if the variables in the multi-dimensional associative array $parser_variables depend on other variables
+   * If any of the variables they depend is TAINTED then the variable is updated to be also TAINTED
+   * The multi-dimensional associative array $parser_variables is updated accordingly
+   *  
+   * @param string $file_name with the PHP file name that is going to be parsed
+   * @param string $function_name with the name of the function where the code is being executed.
+   * if the code ise being executed outside any function this argument should take the value 'function', which is the default value.
+   * This name was choosen because 'function' is a PHP reserved word, so there won't be any function with that name (which could cause mistakes)
+   * @param string $block_start_index with the start index of tokens of the multi-dimensional array $files_tokens that is going to be parsed
+   * @param string $block_end_index with the end index of tokens of the multi-dimensional array $files_tokens that is going to be parsed
+   * @param string $equal with the values '=' or 'as'
+   * If it is an 'as' the assigned variable is the one in the right of the 'as'
+   * If it is an '=' the assigned variable is the one in the left of the '=' sign
+   * @param string $variable_before_as_index with the index of the variable in tokens of the multi-dimensional array $parser_variables
+   * 
+   * @return int with the index of multi-dimensional associative array $files_tokens with the end of the assignment
+   */
+  function parse_foreach_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $variable_before_as_index ) {
+    
   }
 
   /**
@@ -590,7 +640,7 @@ class PHP_Parser {
 //do..while
     if ( T_DO === $this->files->files_tokens[ $file_name ][ $block_start_index ][ 0 ] ) {
       $block_end_index = $this->find_match( $file_name, $block_start_index, '{' );
-      $block_end_index = $this->find_match( $file_name, $block_end_index, ';' );
+      $block_end_index = $this->end_of_php_line( $file_name, $block_end_index );
 
 //while
     } elseif ( T_WHILE === $this->files->files_tokens[ $file_name ][ $block_start_index ][ 0 ] ) {
@@ -632,15 +682,21 @@ class PHP_Parser {
     }
 
     $aux = $block_end_index;
-//The alternate syntax
+    //The alternate syntax
     if ( ':' === $this->files->files_tokens[ $file_name ][ $block_end_index + 1 ] ) {
       $count = count( $this->files->files_tokens );
       do {
         $block_end_index++;
       } while ( !(is_array( $this->files->files_tokens[ $file_name ][ $block_end_index ] )
       && ( T_ENDIF === $this->files->files_tokens[ $file_name ][ $block_end_index ][ 0 ] )) );
+
+      //if structure with {..}
     } elseif ( '{' === $this->files->files_tokens[ $file_name ][ $block_end_index + 1 ] ) {
       $block_end_index = $this->find_match( $file_name, $block_start_index + 1, '{' );
+
+      //if structure with just one line of code
+    } else {
+      $block_end_index = $this->end_of_php_line( $file_name, $block_end_index + 1 );
     }
 
     $block_start_index++;
@@ -662,7 +718,8 @@ class PHP_Parser {
   function parse_switch( $file_name, $function_name, $block_start_index ) {
     $this->debug( sprintf( "%s:%s:%s :: %s", __CLASS__, __METHOD__, __FUNCTION__, serialize( func_get_args() ) ) . '<br />' );
 
-    $block_end_index = $this->find_match( $file_name, $block_start_index, '{' );
+    $block_end_index = $this->find_match( $file_name, $block_start_index, '(' );
+
 //The alternate syntax
     if ( ':' === $this->files->files_tokens[ $file_name ][ $block_end_index + 1 ] ) {
       do {
@@ -693,7 +750,95 @@ class PHP_Parser {
   function parse_include_require( $file_name, $function_name, $block_start_index ) {
     $this->debug( sprintf( "%s:%s:%s :: %s", __CLASS__, __METHOD__, __FUNCTION__, serialize( func_get_args() ) ) . '<br />' );
 
-    $block_end_index = $this->find_token( $file_name, $block_start_index, ';' );
+    $block_end_index = $this->end_of_php_line( $file_name, $block_start_index );
+
+//if there is an '(' after the include, include_once, require, require_once
+    if ( '(' === $this->files->files_tokens[ $file_name ][ $block_start_index + 1 ] ) {
+      $file_name_include = $this->files->files_tokens[ $file_name ][ $block_start_index + 2 ][ 1 ];
+    } else {
+      $file_name_include = $this->files->files_tokens[ $file_name ][ $block_start_index + 1 ][ 1 ];
+    }
+
+//TODO use include_paths()  
+    $file_path = dirname( $file_name ) . DIRECTORY_SEPARATOR;
+
+    if ( ('"' === substr( $file_name_include, 0, 1 ) )
+        || ("'" === substr( $file_name_include, 0, 1 ) ) ) {
+      $file_name_include = substr( $file_name_include, 1, -1 );
+    }
+    $include_require_name = $file_name_include;
+    $file_name_include = $file_path . $file_name_include;
+    $file_name_include = realpath( dirname( $file_name_include ) ) . DIRECTORY_SEPARATOR . basename( $file_name_include );
+
+//only parse the file if it is in the multi-dimensional array variable $files_tokens
+    foreach ( $this->files->files_tokens as $key => $value ) {
+      if ( $file_name_include === $key ) {
+        break;
+      }
+    }
+
+//only analyze the included file if it has not been anayzed yet
+    if ( $file_name_include === $key ) {
+
+// get the ...ONCE attribute
+      if ( ( T_INCLUDE_ONCE === $this->files->files_tokens[ $file_name ][ $block_start_index ][ 0 ] )
+          || ( T_REQUIRE_ONCE === $this->files->files_tokens[ $file_name ][ $block_start_index ][ 0 ] ) ) {
+        $once = 'true';
+      } else {
+        $once = 'false';
+      }
+
+// get the INCLUDE.../REQUIRE... attribute    
+      if ( ( T_INCLUDE_ONCE === $this->files->files_tokens[ $file_name ][ $block_start_index ][ 0 ] )
+          || ( T_INCLUDE === $this->files->files_tokens[ $file_name ][ $block_start_index ][ 0 ] ) ) {
+        $include_require = 'include';
+      } else {
+        $include_require = 'require';
+      }
+
+      $yes_include_require = false;
+//store the include/require information int the multi-dimensional array variable $files_include_require
+      for ( $i = 0, $count = count( $this->files_include_require ); $i < $count; $i++ ) {
+//check if the included/required file has already been included
+        if ( ( $file_name_include === $this->files_include_require[ $i ][ 'include_require_file_name' ] )
+            && ($include_require === $this->files_include_require[ $i ][ 'include_require' ] )
+            && ($once === $this->files_include_require[ $i ][ 'once' ] ) ) {
+//the file has already been included/required once
+          $this->files_include_require[ $i ][ 'number_of_calls' ] +=1;
+//If is not a ...ONCE then it will be parsed every time
+          if ( 'false' === $once ) {
+            $this->files_include_require[ $i ][ 'number_of_calls_executed' ] +=1;
+            $yes_include_require = true;
+          }
+          break;
+        }
+      }
+
+//if this include/require has not yet been processed then add it to the multi-dimensional array variable $files_include_require
+      if ( count( $this->files_include_require ) === $i ) {
+        $this->files_include_require[ ] = array(
+          'include_require_file_name' => $file_name_include,
+          'include_require_name' => $include_require_name,
+          'include_require' => $include_require,
+          'once' => $once,
+          'number_of_calls' => 1,
+          'number_of_calls_executed' => 1
+        );
+        $yes_include_require = true;
+      }
+
+//only parse the included/required file if it has not yet been parsed or it is not a ...ONCE file
+      if ( true === $yes_include_require ) {
+        $this->main_parser( $file_name_include, null, null, null );
+      }
+    }
+    return( $block_end_index);
+  }
+
+  function parse_include_require2( $file_name, $function_name, $block_start_index ) {
+    $this->debug( sprintf( "%s:%s:%s :: %s", __CLASS__, __METHOD__, __FUNCTION__, serialize( func_get_args() ) ) . '<br />' );
+
+    $block_end_index = $this->end_of_php_line( $file_name, $block_start_index );
 
 //if there is an '(' after the include, include_once, require, require_once
     if ( '(' === $this->files->files_tokens[ $file_name ][ $block_start_index + 1 ] ) {
@@ -714,9 +859,14 @@ class PHP_Parser {
     $file_name = realpath( dirname( $file_name ) ) . DIRECTORY_SEPARATOR . basename( $file_name );
 
 //only parse the file if it is in the multi-dimensional array variable $files_tokens
-//only analyze the included file if it has not been anayzed yet
-    if ( in_array( $file_name, $this->files->files_tokens ) ) {
+    foreach ( $this->files->files_tokens as $key => $value ) {
+      if ( $file_name === $key ) {
+        break;
+      }
+    }
 
+//only analyze the included file if it has not been anayzed yet
+    if ( $file_name === $key ) {
 // get the ...ONCE attribute
       if ( ( T_INCLUDE_ONCE === $this->files->files_tokens[ $file_name ][ $block_start_index ][ 0 ] )
           || ( T_REQUIRE_ONCE === $this->files->files_tokens[ $file_name ][ $block_start_index ][ 0 ] ) ) {
@@ -790,17 +940,13 @@ class PHP_Parser {
     $this->debug( sprintf( "%s:%s:%s :: %s", __CLASS__, __METHOD__, __FUNCTION__, serialize( func_get_args() ) ) . '<br />' );
 
     $called_function_name = $this->get_function_method_name( $file_name, $block_start_index );
-
-    if ( $this->is_method( $file_name, $block_start_index ) ) {
-//it is an object user defined function
-      $block_start_index+=2;
-    }
+    $block_start_index = $this->get_variable_property_function_method_last_index( $file_name, $block_start_index );
 
 //calculate the end token of the function call        
     if ( '(' === $this->files->files_tokens[ $file_name ][ $block_start_index + 1 ] ) {
       $block_end_index = $this->find_match( $file_name, $block_start_index + 1, '(' );
     } else {
-      $block_end_index = $this->find_token( $file_name, $block_start_index + 1, ';' );
+      $block_end_index = $this->end_of_php_line( $file_name, $block_start_index );
     }
     $block_start_index++;
 
@@ -908,7 +1054,7 @@ class PHP_Parser {
     if ( '(' === $this->files->files_tokens[ $file_name ][ $block_start_index + 1 ] ) {
       $block_end_index = $this->find_match( $file_name, $block_start_index, '(' );
     } else {
-      $block_end_index = $this->find_token( $file_name, $block_start_index, ';' );
+      $block_end_index = $this->end_of_php_line( $file_name, $block_start_index );
     }
 
     $block_start_index++;
@@ -963,7 +1109,7 @@ class PHP_Parser {
       $i--;
     } while ( ( 0 <= $i) && (is_null( $variable_before_equal_name )) );
 
-    $variable_before_equal_index = $this->get_variable_index( $variable_before_equal_name, $function_name );
+    $variable_before_equal_index = $this->get_variable_index( $file_name, $variable_before_equal_name, $function_name );
     $block_end_index = $this->end_of_php_line( $file_name, $block_start_index );
 
     $block_start_index++;
@@ -995,70 +1141,6 @@ class PHP_Parser {
   }
 
   /**
-   * parse the AS token
-   *  
-   * @param string $file_name with the PHP file name that is going to be parsed
-   * @param string $function_name with the name of the function where the code is being executed.
-   * if the code ise being executed outside any function this argument should take the value 'function', which is the default value.
-   * This name was choosen because 'function' is a PHP reserved word, so there won't be any function with that name (which could cause mistakes)
-   * @param string $block_start_index with the start index of tokens of the multi-dimensional array $files_tokens that is going to be parsed
-   * If this argument is null it is assumed as the begining of the multi-dimensional array $files_tokens
-   * @param string $equal with the values '=' or 'as'
-   * If it is an 'as' the assigned variable is the one in the right of the 'as'
-   * If it is an '=' the assigned variable is the one in the left of the '=' sign
-   * 
-   * @return int with the index of multi-dimensional associative array $files_tokens with the end of the assignment
-   */
-  function parse_as( $file_name, $function_name, $block_start_index ) {
-    $this->debug( sprintf( "%s:%s:%s :: %s", __CLASS__, __METHOD__, __FUNCTION__, serialize( func_get_args() ) ) . '<br />' );
-
-    //find the variable that is assigned something by searching backwards in the multi-dimensional array $files_tokens
-    $variable_before_as_name = null;
-    $i = $block_start_index;
-
-    //get the name of the assigned variable or method proterty (the one before the AS token)
-    do {
-      if ( ( is_array( $this->files->files_tokens[ $file_name ][ $i ] ) )
-          && (( $this->is_variable( $file_name, $i ) ) || ( $this->is_property( $file_name, $i ) )) ) {
-        $v = $i;
-        //$v is passed by reference
-        $variable_before_as_name = $this->get_variable_property_complete_array_name( $file_name, $v );
-      }
-      $i--;
-    } while ( ( 0 <= $i) && (is_null( $variable_before_as_name )) );
-
-    $variable_before_as_index = $this->get_variable_index( $variable_before_as_name, $function_name );
-    $block_end_index = $this->end_of_php_line( $file_name, $block_start_index );
-
-    $block_start_index++;
-    $this->parse_as_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $variable_before_as_index );
-
-    return $block_end_index;
-  }
-
-  /**
-   * Verify if the variables in the multi-dimensional associative array $parser_variables depend on other variables
-   * If any of the variables they depend is TAINTED then the variable is updated to be also TAINTED
-   * The multi-dimensional associative array $parser_variables is updated accordingly
-   *  
-   * @param string $file_name with the PHP file name that is going to be parsed
-   * @param string $function_name with the name of the function where the code is being executed.
-   * if the code ise being executed outside any function this argument should take the value 'function', which is the default value.
-   * This name was choosen because 'function' is a PHP reserved word, so there won't be any function with that name (which could cause mistakes)
-   * @param string $block_start_index with the start index of tokens of the multi-dimensional array $files_tokens that is going to be parsed
-   * @param string $block_end_index with the end index of tokens of the multi-dimensional array $files_tokens that is going to be parsed
-   * @param string $equal with the values '=' or 'as'
-   * If it is an 'as' the assigned variable is the one in the right of the 'as'
-   * If it is an '=' the assigned variable is the one in the left of the '=' sign
-   * @param string $variable_before_as_index with the index of the variable in tokens of the multi-dimensional array $parser_variables
-   * 
-   * @return int with the index of multi-dimensional associative array $files_tokens with the end of the assignment
-   */
-  function parse_as_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $variable_before_as_index ) {
-    
-  }
-
-  /**
    * Parse variables and object properties
    * 
    * @param string $file_name with the PHP file name that is going to be parsed
@@ -1081,6 +1163,13 @@ class PHP_Parser {
       $block_start_index++;
     } else {
       $variable_scope = 'local';
+    }
+
+    //skip constant definitions
+    if ( T_CONST === $this->files->files_tokens[ $file_name ][ $block_start_index ][ 0 ] ) {
+      $block_start_index++;
+      $block_end_index = $this->end_of_php_line( $file_name, $block_start_index );
+      return( $block_end_index);
     }
 
     $block_end_index = $block_start_index;
@@ -1135,7 +1224,7 @@ class PHP_Parser {
       $block_end_index = $this->find_match( $file_name, $block_start_index, '(' );
       $block_start_index++;
     } else {
-      $block_end_index = $this->find_token( $file_name, $block_start_index, ';' );
+      $block_end_index = $this->end_of_php_line( $file_name, $block_start_index );
     }
 
     $i = $this->parse_variable( $file_name, $function_name, $block_start_index + 1 );
@@ -1144,7 +1233,7 @@ class PHP_Parser {
 //$v is passed by reference
     $variable_name = $this->get_variable_property_complete_array_name( $file_name, $v );
 
-    $variable_index = $this->get_variable_index( $variable_name, $function_name );
+    $variable_index = $this->get_variable_index( $file_name, $variable_name, $function_name );
 
     $this->parse_unset_vulnerability( $block_end_index, $variable_index );
 
@@ -1336,15 +1425,23 @@ class PHP_Parser {
       if ( ( T_ECHO === $token[ $i ][ 0 ] )
           || ( T_PRINT === $token[ $i ][ 0 ] )
           || ( T_EXIT === $token[ $i ][ 0 ] )
+          || ( T_INT_CAST === $token[ $i ][ 0 ] )
+          || ( T_DOUBLE_CAST === $token[ $i ][ 0 ] )
+          || ( T_STRING_CAST === $token[ $i ][ 0 ] )
+          || ( T_ARRAY_CAST === $token[ $i ][ 0 ] )
+          || ( T_OBJECT_CAST === $token[ $i ][ 0 ] )
+          || ( T_BOOL_CAST === $token[ $i ][ 0 ] )
+          || ( T_UNSET_CAST === $token[ $i ][ 0 ] )
           || ($this->is_function( $file_name, $i ))
           || ($this->is_method( $file_name, $i )) ) {
 //calculate the end token of the function call        
         $called_function_name = $this->get_function_method_name( $file_name, $i );
+        $i = $this->get_variable_property_function_method_last_index( $file_name, $i );
 
         if ( '(' === $this->files->files_tokens[ $file_name ][ $i + 1 ] ) {
           $function_end_index = $this->find_match( $file_name, $i + 1, '(' );
         } else {
-          $function_end_index = $this->find_token( $file_name, $i + 1, ';' );
+          $function_end_index = $this->end_of_php_line( $file_name, $i );
         }
         if ( ($block_index >= $i) && ($block_index <= $function_end_index) ) {
           $function_name = $called_function_name;
@@ -1370,17 +1467,19 @@ class PHP_Parser {
    */
   function find_function_name_of_code( $file_name, $file_index ) {
 //search for user defined functions in the multi-dimensional associative array $files_tokens
+    $function_name = 'function';
     if ( !empty( $this->files_functions ) ) {
       foreach ( $this->files_functions as $key => $value ) {
         if ( ( $value[ 'file_name' ] === $file_name)
             && ( $value[ 'file_tokens_start_index' ] <= $file_index)
             && ( $value[ 'file_tokens_end_index' ] >= $file_index) ) {
-          return $value[ 'function_name' ];
+          $function_name = $value[ 'function_name' ];
+          //do not return here, because there may be a function definition inside a function definition
         }
       }
     }
 
-    return 'function';
+    return $function_name;
   }
 
   /**
@@ -1471,8 +1570,6 @@ class PHP_Parser {
 
   /**
    * check if the token is a php variable, an object property, a php user defined function or an object method
-   * 
-   * TODO objects of objects
    *  
    * @param string $file_name with the PHP file name that is going to be parsed
    * @param string $file_index with the index of the token of the multi-dimensional array $files_tokens that is going to be parsed
@@ -1486,39 +1583,76 @@ class PHP_Parser {
       $token = $this->files->files_tokens[ $file_name ];
 
 //test if the $file_index is at the start of a php variable, an object property, a php user defined function or an object method
-      if ( ($file_index >= 2) && (T_OBJECT_OPERATOR === $token[ $file_index - 1 ][ 0 ] ) ) {
+      if ( ($file_index >= 2) && ((T_OBJECT_OPERATOR === $token[ $file_index - 1 ][ 0 ] ) || (T_DOUBLE_COLON === $token[ $file_index - 1 ][ 0 ] )) ) {
         $file_index = $file_index - 2;
       }
 
-//method
       if ( ( T_VARIABLE === $token[ $file_index ][ 0 ] )
-          && ( T_OBJECT_OPERATOR === $token[ $file_index + 1 ][ 0 ] )
-          && ( T_STRING === $token[ $file_index + 2 ][ 0 ] )
-          && ( '(' === $token[ $file_index + 3 ][ 0 ] ) ) {
-        return 'method';
+          || ( T_STRING === $token[ $file_index ][ 0 ] )
+          || ( T_ECHO === $token[ $file_index ][ 0 ] )
+          || ( T_PRINT === $token[ $file_index ][ 0 ] )
+          || ( T_EXIT === $token[ $file_index ][ 0 ] )
+          || ( T_INT_CAST === $token[ $file_index ][ 0 ] )
+          || ( T_DOUBLE_CAST === $token[ $file_index ][ 0 ] )
+          || ( T_STRING_CAST === $token[ $file_index ][ 0 ] )
+          || ( T_ARRAY_CAST === $token[ $file_index ][ 0 ] )
+          || ( T_OBJECT_CAST === $token[ $file_index ][ 0 ] )
+          || ( T_BOOL_CAST === $token[ $file_index ][ 0 ] )
+          || ( T_UNSET_CAST === $token[ $file_index ][ 0 ] )
+      ) {
+        $name = $token[ $file_index ][ 1 ];
 
-//property
-      } elseif ( ( T_VARIABLE === $token[ $file_index ][ 0 ] )
-          && ( T_OBJECT_OPERATOR === $token[ $file_index + 1 ][ 0 ] )
-          && ( T_STRING === $token[ $file_index + 2 ][ 0 ] )
-          && ( '(' != $token[ $file_index + 3 ][ 0 ] ) ) {
-        return 'property';
+        while ( ( T_OBJECT_OPERATOR === $token[ $file_index + 1 ][ 0 ] ) || (T_DOUBLE_COLON === $token[ $file_index + 1 ][ 0 ] ) ) {
 
-//variable
-      } elseif ( ( T_VARIABLE === $token[ $file_index ][ 0 ] )
-          && ( '(' != $token[ $file_index + 1 ][ 0 ] ) ) {
-        return 'variable';
+          //for dynamically defined variable name, the name of the variable is the constant part only
+          //TODO improvement in this code
+          if ( '{' === $token[ $file_index + 2 ] ) {
+            $file_end_index = $this->find_match( $file_name, $file_index, '{' );
+            break;
+          }
 
-//function
-      } elseif ( ( T_STRING === $token[ $file_index ][ 0 ] )
-          && ( '(' === $token[ $file_index + 1 ][ 0 ] ) ) {
-        return 'function';
+          $name = $name . $token[ $file_index + 1 ][ 1 ] . $token[ $file_index + 2 ][ 1 ];
+          $file_index+=2;
+        }
+        if ( (T_OBJECT_OPERATOR === $token[ $file_index - 1 ][ 0 ] ) || (T_DOUBLE_COLON === $token[ $file_index - 1 ][ 0 ] ) ) {
 
-//function
-      } elseif ( ( T_ECHO === $token[ $file_index ][ 0 ] )
-          || (T_PRINT === $token[ $file_index ][ 0 ] )
-          || (T_EXIT === $token[ $file_index ][ 0 ] ) ) {
-        return 'function';
+          //method
+          if ( '(' === $token[ $file_index + 1 ][ 0 ] ) {
+            return 'method';
+
+            //property
+          } else {
+            return 'property';
+          }
+        } else {
+
+          //variable
+          if ( (T_VARIABLE === $token[ $file_index ][ 0 ] )
+              && ( '(' != $token[ $file_index + 1 ][ 0 ] ) ) {
+            return 'variable';
+
+            //function
+          } elseif ( ( T_STRING === $token[ $file_index ][ 0 ] )
+              && ( '(' === $token[ $file_index + 1 ][ 0 ] ) ) {
+            return 'function';
+
+            //function
+          } elseif ( ( T_ECHO === $token[ $file_index ][ 0 ] )
+              || ( T_PRINT === $token[ $file_index ][ 0 ] )
+              || ( T_EXIT === $token[ $file_index ][ 0 ] )
+              || ( T_INT_CAST === $token[ $file_index ][ 0 ] )
+              || ( T_DOUBLE_CAST === $token[ $file_index ][ 0 ] )
+              || ( T_STRING_CAST === $token[ $file_index ][ 0 ] )
+              || ( T_ARRAY_CAST === $token[ $file_index ][ 0 ] )
+              || ( T_OBJECT_CAST === $token[ $file_index ][ 0 ] )
+              || ( T_BOOL_CAST === $token[ $file_index ][ 0 ] )
+              || ( T_UNSET_CAST === $token[ $file_index ][ 0 ] )
+          ) {
+            return 'function';
+          } else {
+            return null;
+          }
+        }
       } else {
         return null;
       }
@@ -1531,10 +1665,19 @@ class PHP_Parser {
     
   }
 
+  function get_variable_property_function_method_last_index( $file_name, $file_index ) {
+    $count = count( $this->files->files_tokens[ $file_name ] );
+    if ( ($file_index < $count - 3) && ((T_OBJECT_OPERATOR === $this->files->files_tokens[ $file_name ][ $file_index ][ 0 ] ) || (T_DOUBLE_COLON === $this->files->files_tokens[ $file_name ][ $file_index ][ 0 ] )) ) {
+      $file_index = $file_index + 1;
+    }
+    while ( ( T_OBJECT_OPERATOR === $this->files->files_tokens[ $file_name ][ $file_index + 1 ][ 0 ] ) || (T_DOUBLE_COLON === $this->files->files_tokens[ $file_name ][ $file_index + 1 ][ 0 ] ) ) {
+      $file_index+=2;
+    }
+    return $file_index;
+  }
+
   /**
    * get the name of the php user defined function or an object method by parsing the multi-dimensional associative array $files_tokens
-   * 
-   * TODO objects of objects
    *  
    * @param string $file_name with the PHP file name that is going to be parsed
    * @param string $file_index with the index of the token of the multi-dimensional array $files_tokens that is going to be parsed
@@ -1548,44 +1691,78 @@ class PHP_Parser {
       $token = $this->files->files_tokens[ $file_name ];
 
 //test if the $file_index is at the start of a php variable, an object property, a php user defined function or an object method
-      if ( ($file_index >= 2) && (T_OBJECT_OPERATOR === $token[ $file_index - 1 ][ 0 ] ) ) {
+      if ( ($file_index >= 2) && ((T_OBJECT_OPERATOR === $token[ $file_index - 1 ][ 0 ] ) || (T_DOUBLE_COLON === $token[ $file_index - 1 ][ 0 ] )) ) {
         $file_index = $file_index - 2;
       }
 
-//method
       if ( ( T_VARIABLE === $token[ $file_index ][ 0 ] )
-          && ( T_OBJECT_OPERATOR === $token[ $file_index + 1 ][ 0 ] )
-          && ( T_STRING === $token[ $file_index + 2 ][ 0 ] )
-          && ( '(' === $token[ $file_index + 3 ][ 0 ] ) ) {
-        $name = $token[ $file_index ][ 1 ] . $token[ $file_index + 1 ][ 1 ] . $token[ $file_index + 2 ][ 1 ];
-        return $name;
-
-//property
-      } elseif ( ( T_VARIABLE === $token[ $file_index ][ 0 ] )
-          && ( T_OBJECT_OPERATOR === $token[ $file_index + 1 ][ 0 ] )
-          && ( T_STRING === $token[ $file_index + 2 ][ 0 ] )
-          && ('(' != $token[ $file_index + 3 ][ 0 ] ) ) {
-        $name = $token[ $file_index ][ 1 ] . $token[ $file_index + 1 ][ 1 ] . $token[ $file_index + 2 ][ 1 ];
-        return 'variable';
-
-//variable
-      } elseif ( (T_VARIABLE === $token[ $file_index ][ 0 ] )
-          && ( '(' != $token[ $file_index + 1 ][ 0 ] ) ) {
-        $name = $token[ $file_index ][ 1 ];
-        return 'variable';
-
-//function
-      } elseif ( ( T_STRING === $token[ $file_index ][ 0 ] )
-          && ( '(' === $token[ $file_index + 1 ][ 0 ] ) ) {
-        $name = $token[ $file_index ][ 1 ];
-        return $name;
-
-//function
-      } elseif ( ( T_ECHO === $token[ $file_index ][ 0 ] )
+          || ( T_STRING === $token[ $file_index ][ 0 ] )
+          || ( T_ECHO === $token[ $file_index ][ 0 ] )
           || ( T_PRINT === $token[ $file_index ][ 0 ] )
-          || ( T_EXIT === $token[ $file_index ][ 0 ] ) ) {
+          || ( T_EXIT === $token[ $file_index ][ 0 ] )
+          || ( T_INT_CAST === $token[ $file_index ][ 0 ] )
+          || ( T_DOUBLE_CAST === $token[ $file_index ][ 0 ] )
+          || ( T_STRING_CAST === $token[ $file_index ][ 0 ] )
+          || ( T_ARRAY_CAST === $token[ $file_index ][ 0 ] )
+          || ( T_OBJECT_CAST === $token[ $file_index ][ 0 ] )
+          || ( T_BOOL_CAST === $token[ $file_index ][ 0 ] )
+          || ( T_UNSET_CAST === $token[ $file_index ][ 0 ] )
+      ) {
         $name = $token[ $file_index ][ 1 ];
-        return $name;
+        while ( ( T_OBJECT_OPERATOR === $token[ $file_index + 1 ][ 0 ] ) || (T_DOUBLE_COLON === $token[ $file_index + 1 ][ 0 ] ) ) {
+
+
+          //for dynamically defined variable name, the name of the variable is the constant part only
+          //TODO improvement in this code
+          if ( '{' === $token[ $file_index + 2 ] ) {
+            $file_end_index = $this->find_match( $file_name, $file_index, '{' );
+//            $function_name = $this->get_function_method_name( $file_name, $file_index );
+//            $expression = $this->parse_expression_vulnerability( $file_name, $function_name, $file_index, $file_end_index, null, null );
+            break;
+          }
+
+          $name = $name . $token[ $file_index + 1 ][ 1 ] . $token[ $file_index + 2 ][ 1 ];
+          $file_index+=2;
+        }
+        if ( ( T_OBJECT_OPERATOR === $token[ $file_index - 1 ][ 0 ] ) || (T_DOUBLE_COLON === $token[ $file_index - 1 ][ 0 ] ) ) {
+
+          //method
+          if ( '(' === $token[ $file_index + 1 ][ 0 ] ) {
+            return $name;
+
+            //property
+          } else {
+            return $name;
+          }
+        } else {
+
+          //variable
+          if ( (T_VARIABLE === $token[ $file_index ][ 0 ] )
+              && ( '(' != $token[ $file_index + 1 ][ 0 ] ) ) {
+            return $name;
+
+            //function
+          } elseif ( ( T_STRING === $token[ $file_index ][ 0 ] )
+              && ( '(' === $token[ $file_index + 1 ][ 0 ] ) ) {
+            return $name;
+
+            //function
+          } elseif ( ( T_ECHO === $token[ $file_index ][ 0 ] )
+              || ( T_PRINT === $token[ $file_index ][ 0 ] )
+              || ( T_EXIT === $token[ $file_index ][ 0 ] )
+              || ( T_INT_CAST === $token[ $file_index ][ 0 ] )
+              || ( T_DOUBLE_CAST === $token[ $file_index ][ 0 ] )
+              || ( T_STRING_CAST === $token[ $file_index ][ 0 ] )
+              || ( T_ARRAY_CAST === $token[ $file_index ][ 0 ] )
+              || ( T_OBJECT_CAST === $token[ $file_index ][ 0 ] )
+              || ( T_BOOL_CAST === $token[ $file_index ][ 0 ] )
+              || ( T_UNSET_CAST === $token[ $file_index ][ 0 ] )
+          ) {
+            return $name;
+          } else {
+            return null;
+          }
+        }
       } else {
         return null;
       }
@@ -1597,8 +1774,6 @@ class PHP_Parser {
   /**
    * get the name of the php variable or an object property by parsing the multi-dimensional associative array $files_tokens
    *  
-   * TODO objects of objects
-   * 
    * @param string $file_name with the PHP file name that is going to be parsed
    * @param string $file_index with the index of the token of the multi-dimensional array $files_tokens that is going to be parsed
    * 
@@ -1606,49 +1781,85 @@ class PHP_Parser {
    */
   function get_variable_property_name( $file_name, $file_index ) {
     $name = null;
+
 //test if the $file_index is at the start of a php variable, an object property, a php user defined function or an object method
     if ( $file_index >= 0 ) {
       $token = $this->files->files_tokens[ $file_name ];
 
 //test if the $file_index is at the start of a php variable, an object property, a php user defined function or an object method
-      if ( ($file_index >= 2) && (T_OBJECT_OPERATOR === $token[ $file_index - 1 ][ 0 ] ) ) {
+      while ( ($file_index >= 2) && ((T_OBJECT_OPERATOR === $token[ $file_index - 1 ][ 0 ] ) || (T_DOUBLE_COLON === $token[ $file_index - 1 ][ 0 ] ) ) ) {
         $file_index = $file_index - 2;
       }
 
-//method
+
       if ( ( T_VARIABLE === $token[ $file_index ][ 0 ] )
-          && ( T_OBJECT_OPERATOR === $token[ $file_index + 1 ][ 0 ] )
-          && ( T_STRING === $token[ $file_index + 2 ][ 0 ] )
-          && ( '(' === $token[ $file_index + 3 ][ 0 ] ) ) {
-        $name = $token[ $file_index ][ 1 ] . $token[ $file_index + 1 ][ 1 ] . $token[ $file_index + 2 ][ 1 ];
-        return 'function';
-
-//property
-      } elseif ( ( T_VARIABLE === $token[ $file_index ][ 0 ] )
-          && ( T_OBJECT_OPERATOR === $token[ $file_index + 1 ][ 0 ] )
-          && ( T_STRING === $token[ $file_index + 2 ][ 0 ] )
-          && ('(' != $token[ $file_index + 3 ][ 0 ] ) ) {
-        $name = $token[ $file_index ][ 1 ] . $token[ $file_index + 1 ][ 1 ] . $token[ $file_index + 2 ][ 1 ];
-        return $name;
-
-//variable
-      } elseif ( (T_VARIABLE === $token[ $file_index ][ 0 ] )
-          && ( '(' != $token[ $file_index + 1 ][ 0 ] ) ) {
-        $name = $token[ $file_index ][ 1 ];
-        return $name;
-
-//function
-      } elseif ( ( T_STRING === $token[ $file_index ][ 0 ] )
-          && ( '(' === $token[ $file_index + 1 ][ 0 ] ) ) {
-        $name = $token[ $file_index ][ 1 ];
-        return 'function';
-
-//function
-      } elseif ( ( T_ECHO === $token[ $file_index ][ 0 ] )
+          || ( T_STRING === $token[ $file_index ][ 0 ] )
+          || ( T_ECHO === $token[ $file_index ][ 0 ] )
           || ( T_PRINT === $token[ $file_index ][ 0 ] )
-          || ( T_EXIT === $token[ $file_index ][ 0 ] ) ) {
+          || ( T_EXIT === $token[ $file_index ][ 0 ] )
+          || ( T_INT_CAST === $token[ $file_index ][ 0 ] )
+          || ( T_DOUBLE_CAST === $token[ $file_index ][ 0 ] )
+          || ( T_STRING_CAST === $token[ $file_index ][ 0 ] )
+          || ( T_ARRAY_CAST === $token[ $file_index ][ 0 ] )
+          || ( T_OBJECT_CAST === $token[ $file_index ][ 0 ] )
+          || ( T_BOOL_CAST === $token[ $file_index ][ 0 ] )
+          || ( T_UNSET_CAST === $token[ $file_index ][ 0 ] )
+      ) {
         $name = $token[ $file_index ][ 1 ];
-        return 'function';
+        while ( ( T_OBJECT_OPERATOR === $token[ $file_index + 1 ][ 0 ] ) || (T_DOUBLE_COLON === $token[ $file_index + 1 ][ 0 ] ) ) {
+
+
+          //for dynamically defined variable name, the name of the variable is the constant part only
+          //TODO improvement in this code
+          if ( '{' === $token[ $file_index + 2 ] ) {
+            $file_end_index = $this->find_match( $file_name, $file_index, '{' );
+//            $function_name = $this->get_function_method_name( $file_name, $file_index );
+//            $expression = $this->parse_expression_vulnerability( $file_name, $function_name, $file_index, $file_end_index, null, null );
+            break;
+          }
+
+          $name = $name . $token[ $file_index + 1 ][ 1 ] . $token[ $file_index + 2 ][ 1 ];
+          $file_index+=2;
+        }
+        if ( ( T_OBJECT_OPERATOR === $token[ $file_index - 1 ][ 0 ] ) || (T_DOUBLE_COLON === $token[ $file_index - 1 ][ 0 ] ) ) {
+
+          //method
+          if ( '(' === $token[ $file_index + 1 ][ 0 ] ) {
+            return 'function';
+
+            //property
+          } else {
+            return $name;
+          }
+        } else {
+
+          //variable
+          if ( (T_VARIABLE === $token[ $file_index ][ 0 ] )
+              && ( '(' != $token[ $file_index + 1 ][ 0 ] ) ) {
+            return $name;
+
+            //function
+          } elseif ( ( T_STRING === $token[ $file_index ][ 0 ] )
+              && ( '(' === $token[ $file_index + 1 ][ 0 ] ) ) {
+            return 'function';
+
+            //function
+          } elseif ( ( T_ECHO === $token[ $file_index ][ 0 ] )
+              || ( T_PRINT === $token[ $file_index ][ 0 ] )
+              || ( T_EXIT === $token[ $file_index ][ 0 ] )
+              || ( T_INT_CAST === $token[ $file_index ][ 0 ] )
+              || ( T_DOUBLE_CAST === $token[ $file_index ][ 0 ] )
+              || ( T_STRING_CAST === $token[ $file_index ][ 0 ] )
+              || ( T_ARRAY_CAST === $token[ $file_index ][ 0 ] )
+              || ( T_OBJECT_CAST === $token[ $file_index ][ 0 ] )
+              || ( T_BOOL_CAST === $token[ $file_index ][ 0 ] )
+              || ( T_UNSET_CAST === $token[ $file_index ][ 0 ] )
+          ) {
+            return 'function';
+          } else {
+            return null;
+          }
+        }
       } else {
         return null;
       }
@@ -1666,13 +1877,26 @@ class PHP_Parser {
    * @return the name of the variable and in the $file_index parameter the last index of the variable in the multi-dimensional array $files_tokens
    */
   function get_variable_property_complete_array_name( $file_name, &$file_index ) {
+    //get the variable name even if it is preceded by a '&'
+    if ( '&' === $this->files->files_tokens[ $file_name ][ $file_index ] ) {
+      $file_index++;
+    }
+
     $variable_name = $this->get_variable_property_name( $file_name, $file_index );
+
+    $file_index = $this->get_variable_property_function_method_last_index( $file_name, $file_index );
+
     if ( ($this->is_variable( $file_name, $file_index )) || ($this->is_property( $file_name, $file_index )) ) {
-      if ( $this->is_variable( $file_name, $file_index ) ) {
+
+      if ( (( T_OBJECT_OPERATOR === $this->files->files_tokens[ $file_name ][ $file_index + 1 ][ 0 ] ) || (T_DOUBLE_COLON === $this->files->files_tokens[ $file_name ][ $file_index + 1 ][ 0 ] ) ) ) {
+        $file_index = $file_index + 1;
+        while ( ( T_OBJECT_OPERATOR === $this->files->files_tokens[ $file_name ][ $file_index ][ 0 ] ) || (T_DOUBLE_COLON === $this->files->files_tokens[ $file_name ][ $file_index ][ 0 ] ) ) {
+          $file_index = $file_index + 2;
+        }
+      } else {
         $file_index++;
-      } elseif ( $this->is_property( $file_name, $file_index ) ) {
-        $file_index = $file_index + 3;
       }
+
       for ( $i = $file_index, $count = count( $this->files->files_tokens[ $file_name ] ); $i < $count - 1; $i++ ) {
         $add_index = 0;
         // test to see if it is an array variable
@@ -1687,14 +1911,6 @@ class PHP_Parser {
             }
           }
           $variable_name = $variable_name . ']';
-        } elseif ( is_array( $this->files->files_tokens[ $file_name ][ $file_index ] ) ) {
-          // test to see if it is an object
-          if ( $this->is_property( $file_name, $i - 1 ) || $this->is_method( $file_name, $i - 1 ) ) {
-            $variable_name = $this->get_variable_property_complete_array_name( $file_name, $i );
-            $add_index = 1;
-          } else {
-            break;
-          }
         } else {
           break;
         }
@@ -1703,6 +1919,7 @@ class PHP_Parser {
       $file_index = $i - 1;
       return $variable_name;
     } else {
+      $file_index = $file_index - 1;
       return $variable_name;
     }
   }
@@ -1717,9 +1934,9 @@ class PHP_Parser {
     return $object_name;
   }
 
-  function get_object_property_index( $function_name, $property_name ) {
+  function get_object_property_index( $file_name, $function_name, $property_name ) {
     $prefix = explode( '->', $property_name, 2 );
-    $object_property_index = $this->get_variable_index( $prefix[ 0 ], $function_name );
+    $object_property_index = $this->get_variable_index( $file_name, $prefix[ 0 ], $function_name );
     return $object_property_index;
   }
 
@@ -1732,11 +1949,13 @@ class PHP_Parser {
    * 
    * @return int with the index of the most recent apearence of the variable in the multi-dimensional associative array $parser_variables
    */
-  function get_variable_index( $variable_name, $function_name ) {
+  function get_variable_index( $file_name, $variable_name, $function_name ) {
     $count = count( $this->parser_variables );
     for ( $i = $count - 1; $i >= 0; $i-- ) {
+
 //note: PHP functions are not case sensitive
       if ( ( $variable_name === $this->parser_variables[ $i ][ 'variable_name' ] )
+          && (0 === strcasecmp( $this->parser_variables[ $i ][ 'file_name' ], $file_name ))
           && (0 === strcasecmp( $this->parser_variables[ $i ][ 'function_name' ], $function_name ) ) ) {
         return $i;
       }

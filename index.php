@@ -26,6 +26,8 @@
  */
 require_once 'class-php-safe.php';
 
+ini_set( 'max_execution_time', 2400 ); //2400 seconds = 40 minutes
+
 echo "<!DOCTYPE html><title>" . APP . "</title><html><head>";
 echo "<br /><div class='main'><h2>" . APP . "</h2><br /><br />";
 if ( extension_loaded( 'tokenizer' ) === false ) {
@@ -50,10 +52,13 @@ if ( !isset( $_POST[ 'choose_new_php_file' ] ) ) {
 _END;
 } else {
   echo "Security analysis of the file <b>" . $_POST[ 'php_file' ] . "</b><br /><br />";
-  if ( $vulnerability_check = new PHP_SAFE( htmlspecialchars( $_POST[ 'php_file' ] ) ) ) {
+    $time_start = microtime( true );
+if ( $vulnerability_check = new PHP_SAFE( htmlspecialchars( $_POST[ 'php_file' ] ) ) ) {
+  $time_end = microtime( true );
+  $time = $time_end - $time_start;
 
     echo "<form method='post' action='index.php'><input type='hidden' name='php_file' value='" . $_POST[ 'php_file' ] . "' /><input type='submit' value ='Choose another file' /></form>";
-    echo "<hr><b>" . count( $vulnerability_check->get_vulnerable_variables() ) . " vulnerabilities found!</b><br />";
+    echo "<hr><b>" . count( $vulnerability_check->get_vulnerable_variables() ) . " vulnerabilities found in ".sprintf( '%01.2f', $time )." seconds!</b><br />";
     echo "<hr><form method='post'><input type='button' value ='Show All' onclick='showAll()'/><input type='button' value ='Hide All' onclick='hideAll()'/><input type='button' value ='Default All' onclick='defaultAll()'/><br /></form>";
 
     echo "<hr><form method='post'><input type='checkbox' id='checkboxParserDebug' onclick='showParserDebug(this)'/>Show/Hide Parser Debug (<b>" . count( $vulnerability_check->get_parser_debug() ) . "</b>) <br /><pre><span id='parserDebug'></span></pre></form>";

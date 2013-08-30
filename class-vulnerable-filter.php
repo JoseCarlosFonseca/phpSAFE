@@ -105,7 +105,7 @@ class Vulnerable_Filter {
 //apply_filters, --I think not
 //see more at: http://codex.wordpress.org/Data_Validation
 //see more at: http://fieldguide.automattic.com/avoiding-xss/
-    'wpFunctions' => array( //added by me
+    WP_FUNCTIONS => array( //added by me
       'add_query_arg',
       'addslashes_gpc',
       'antispambot',

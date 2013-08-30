@@ -99,9 +99,13 @@ class PHP_SAFE extends PHP_Parser {
         $next_argument_index = $block_end_index;
       }
 
+      //if the function definition has less parameters than there are arguments continue with the existing arguments
+      if ( $parameter_number >= count( $this->files_functions[ $called_function_index ][ 'function_parameters' ] ) ) {
+        break;
+      }
+
       //the argument may be an expression, instead of a single variable
       $expression = $this->parse_expression_vulnerability( $file_name, $function_name, $i, $next_argument_index, null, null );
-
       $called_function_parameter_name = $this->files_functions[ $called_function_index ][ 'function_parameters' ][ $parameter_number ][ 'parameter_name' ];
 
       //If the variable is an object and it is tainted, then the contents of that variable are also tainted
@@ -123,8 +127,8 @@ class PHP_SAFE extends PHP_Parser {
         'file_line_number' => $this->files_functions[ $called_function_index ][ 'function_parameters' ][ $parameter_number ][ 'file_line_number' ],
         'tainted' => $expression[ 'tainted' ],
         'vulnerability_classification' => $expression[ 'vulnerability_classification' ],
-        'file_tokens_start_index' => $i,
-        'file_tokens_end_index' => $next_argument_index - 1,
+        'file_tokens_start_index' => $this->files_functions[ $called_function_index ][ 'file_tokens_start_index' ],
+        'file_tokens_end_index' => $this->files_functions[ $called_function_index ][ 'file_tokens_start_index' ],
         'variable_dependencies_index' => $expression[ 'variable_dependencies_index' ],
       );
       if ( $next_argument_index === $block_end_index ) {
@@ -165,7 +169,7 @@ class PHP_SAFE extends PHP_Parser {
           && (EXIST === $this->parser_variables[ $i ][ 'exist_destroyed' ] ) ) {
         //a variable used in the called function was found
         //search if a variable of the called function with the same name was already destroyed
-        $variable_index = $this->get_variable_index( $this->parser_variables[ $i ][ 'variable_name' ], $called_function_name );
+        $variable_index = $this->get_variable_index( $called_function_file_name, $this->parser_variables[ $i ][ 'variable_name' ], $called_function_name );
 
         //it the variable was not yet destroyed, then destroy it by creating a new variable destroyed
         if ( EXIST === $this->parser_variables[ $variable_index ][ 'exist_destroyed' ] ) {
@@ -195,7 +199,7 @@ class PHP_SAFE extends PHP_Parser {
             //if the variable that is the return of the function, then a new variable is created
             //as an untainted variable of the calling function
 
-            $global_variable_index = $this->get_variable_index( $this->parser_variables[ $i ][ 'variable_name' ], $function_name );
+            $global_variable_index = $this->get_variable_index( $file_name, $this->parser_variables[ $i ][ 'variable_name' ], $function_name );
             if ( $global_variable_index ) {
               $scope = $this->parser_variables[ $global_variable_index ][ 'scope' ];
             } else {
@@ -321,7 +325,7 @@ class PHP_SAFE extends PHP_Parser {
     $expression = $this->parse_expression_vulnerability( $file_name, $function_name, $block_start_index + 1, $block_end_index, null, null );
 
     // returns null if there is no variable resulting from the return of this function
-    $variable_index = $this->get_variable_index( $function_name, $function_name );
+    $variable_index = $this->get_variable_index( $file_name, $function_name, $function_name );
     if ( (!is_null( $variable_index )) && (EXIST === $this->parser_variables[ $variable_index ][ 'exist_destroyed' ] ) ) {
       //if the variable is tainted, then we have a vulnerability
       if ( $expression[ 'tainted' ] === TAINTED ) {
@@ -379,9 +383,11 @@ class PHP_SAFE extends PHP_Parser {
     for ( $i = $block_start_index; $i < $block_end_index; $i++ ) {
       //search for other variables after the equal sign
       $variable_tainted = UNTAINTED;
+      $vulnerability_classification = null;
 
       //it is a variable
       if ( ( $this->is_variable( $file_name, $i ) ) || ( $this->is_property( $file_name, $i ) ) ) {
+
         $index = $i;
         //$index (the $files_tokens index) is passed by reference. When it is a function it returns the vlue 'function'
         $variable_name = $this->get_variable_property_complete_array_name( $file_name, $index );
@@ -390,7 +396,7 @@ class PHP_SAFE extends PHP_Parser {
         $this->parse_variable( $file_name, $function_name, $i );
 
         // $this->get_variable_index returns null if there is no variable
-        $variable_index = $this->get_variable_index( $variable_name, $function_name );
+        $variable_index = $this->get_variable_index( $file_name, $variable_name, $function_name );
         //add a variable dependency
         $variable_dependencies_index[ ] = $variable_index;
 
@@ -399,6 +405,7 @@ class PHP_SAFE extends PHP_Parser {
           $this->parser_variables[ $variable_index ][ 'output_variable' ] = OUTPUT_VARIABLE;
         }
 
+//                echo ' $block_start_index '.$block_start_index.' $block_end_index '.$block_end_index.' $i '.$i.' $variable_name '.$variable_name.' $function_name '.$function_name.' $variable_index '.$variable_index.' $file_name '.$file_name.'<br />';
         //if the variable is tainted and it is not filtered, then we have a vulnerability
         if ( ( TAINTED === $this->parser_variables[ $variable_index ][ 'tainted' ] )
             && (OUTPUT_VARIABLE === $this->parser_variables[ $variable_index ][ 'output_variable' ])
@@ -418,6 +425,7 @@ class PHP_SAFE extends PHP_Parser {
 
         $index = $this->parse_function( $file_name, $function_name, $i );
         $target_function_name = $this->get_function_method_name( $file_name, $i );
+        $i = $this->get_variable_property_function_method_last_index( $file_name, $i );
 
         //test if it is one of the input functions
         //note: many input functions are user defined functions, namely wp functions
@@ -469,10 +477,11 @@ class PHP_SAFE extends PHP_Parser {
 
           //it is not an input function
         } else {
-          //search for the return value of the function
+
+//search for the return value of the function
           //return a value if the function is a user defined function with a return value
           //return null if there is no variable
-          $variable_index = $this->get_variable_index( $target_function_name, $function_name );
+          $variable_index = $this->get_variable_index( $file_name, $target_function_name, $function_name );
 
           //it is the return value of the function, so $variable_index has the index of the variable of the return value
           if ( !is_null( $variable_index ) ) {
@@ -505,9 +514,9 @@ class PHP_SAFE extends PHP_Parser {
                   $jndex = $j;
                   //$jndex (the $files_tokens index) is passed by reference
                   $output_variable_name = $this->get_variable_property_complete_array_name( $file_name, $jndex );
-                  $variable_index = $this->get_variable_index( $output_variable_name, $function_name );
+                  $variable_index = $this->get_variable_index( $file_name, $output_variable_name, $function_name );
                   $this->parse_variable( $file_name, $function_name, $j );
-                  $output_variable_index = $this->get_variable_index( $output_variable_name, $function_name );
+                  $output_variable_index = $this->get_variable_index( $file_name, $output_variable_name, $function_name );
 
                   $variable_tainted = null;
                   $variable_filters = null;
@@ -521,7 +530,10 @@ class PHP_SAFE extends PHP_Parser {
                     //if the variable is tainted, then we must check if the function is one of the filtering functions
                     if ( TAINTED === $this->parser_variables[ $output_variable_index ][ 'tainted' ] ) {
                       if ( $this->is_variable_filtered( $file_name, $j ) ) {
-
+                        //untaint the original variable, because it is filtered
+                        $this->parser_variables[ $output_variable_index ][ 'tainted' ]=UNTAINTED;
+                        $this->parser_variables[ $output_variable_index ][ 'vulnerability_classification' ]=FILTERED;
+                        
                         $variable_tainted = UNTAINTED;
                         $variable_vulnerability_classification = FILTERED;
                         if ( is_null( $vulnerability_classification ) ) {
@@ -547,6 +559,7 @@ class PHP_SAFE extends PHP_Parser {
                     if ( (is_null( $variable_vulnerability_classification )) || ($tainted === UNTAINTED) ) {
                       $variable_vulnerability_classification = UNKNOWN;
                     }
+
                     $this->parser_variables[ ] = array(
                       'variable_name' => $this->parser_variables[ $output_variable_index ][ 'variable_name' ],
                       'object_variable_name' => $this->parser_variables[ $output_variable_index ][ 'object_variable_name' ],
@@ -567,7 +580,7 @@ class PHP_SAFE extends PHP_Parser {
                     );
 
                     $variable_dependencies_index = null;
-                    $variable_dependencies_index[ ] = $this->get_variable_index( $this->parser_variables[ $output_variable_index ][ 'variable_name' ], $function_name );
+                    $variable_dependencies_index[ ] = $this->get_variable_index( $this->parser_variables[ $output_variable_index ][ 'file_name' ], $this->parser_variables[ $output_variable_index ][ 'variable_name' ], $function_name );
                   } else {
                     $output_variable_dependencies_index = $output_variable_index;
                     $variable_dependencies_index[ ] = $output_variable_dependencies_index;
@@ -597,7 +610,7 @@ class PHP_SAFE extends PHP_Parser {
                       );
 
                       $variable_dependencies_index = null;
-                      $variable_dependencies_index[ ] = $this->get_variable_index( $this->parser_variables[ $output_variable_index ][ 'variable_name' ], $function_name );
+                      $variable_dependencies_index[ ] = $this->get_variable_index( $this->parser_variables[ $output_variable_index ][ 'file_name' ], $this->parser_variables[ $output_variable_index ][ 'variable_name' ], $function_name );
                     }
                   }
 
@@ -616,6 +629,7 @@ class PHP_SAFE extends PHP_Parser {
       $vulnerability_classification = UNKNOWN;
     }
 
+//    echo 'OUTPUT expression $tainted '.$tainted.' $vulnerability_classification '.$vulnerability_classification.' $variable_dependencies_index '.$variable_dependencies_index.'<br />';
     return( array(
       'tainted' => $tainted,
       'vulnerability_classification' => $vulnerability_classification,
@@ -662,7 +676,7 @@ class PHP_SAFE extends PHP_Parser {
    * 
    * @return int with the index of multi-dimensional associative array $files_tokens with the end of the assignment
    */
-  function parse_as_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $variable_before_as_index ) {
+  function parse_foreach_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $variable_before_as_index ) {
     $this->debug( sprintf( "%s:%s:%s :: %s", __CLASS__, __METHOD__, __FUNCTION__, serialize( func_get_args() ) ) . '<br />' );
 
     $index = $block_start_index;
@@ -673,11 +687,17 @@ class PHP_SAFE extends PHP_Parser {
     $this->parse_variable( $file_name, $function_name, $block_start_index );
 
     // $this->get_variable_index return null if there is no variable
-    $variable_after_as_index = $this->get_variable_index( $variable_after_as_name, $function_name );
+    $variable_after_as_index = $this->get_variable_index( $file_name, $variable_after_as_name, $function_name );
 
-    $this->parser_variables[ $variable_after_as_index ][ 'tainted' ] = $this->parser_variables[ $variable_before_as_index ][ 'tainted' ];
-    $this->parser_variables[ $variable_after_as_index ][ 'vulnerability_classification' ] = $this->parser_variables[ $variable_before_as_index ][ 'vulnerability_classification' ];
-    $this->parser_variables[ $variable_after_as_index ][ 'variable_dependencies_index' ][ ] = $variable_before_as_index;
+    if ( !is_null( $variable_before_as_index ) ) {
+      $this->parser_variables[ $variable_after_as_index ][ 'tainted' ] = $this->parser_variables[ $variable_before_as_index ][ 'tainted' ];
+      $this->parser_variables[ $variable_after_as_index ][ 'vulnerability_classification' ] = $this->parser_variables[ $variable_before_as_index ][ 'vulnerability_classification' ];
+      $this->parser_variables[ $variable_after_as_index ][ 'variable_dependencies_index' ][ ] = $variable_before_as_index;
+    } else {
+      $this->parser_variables[ $variable_after_as_index ][ 'tainted' ] = UNTAINTED;
+      $this->parser_variables[ $variable_after_as_index ][ 'vulnerability_classification' ] = UNKNOWN;
+      $this->parser_variables[ $variable_after_as_index ][ 'variable_dependencies_index' ][ ] = null;
+    }
   }
 
   /**
@@ -702,6 +722,11 @@ class PHP_SAFE extends PHP_Parser {
     $this->debug( sprintf( "%s:%s:%s :: %s", __CLASS__, __METHOD__, __FUNCTION__, serialize( func_get_args() ) ) . '<br />' );
 
     if ( !is_null( $variable_name ) && ($variable_name != 'function') ) {
+      //get the variable name even if it is preceded by a '&'
+      if ( '&' === $this->files->files_tokens[ $file_name ][ $block_start_index ] ) {
+        $block_start_index++;
+      }
+
       $line_number = $this->files->files_tokens[ $file_name ][ $block_start_index ][ 2 ];
 
       //regular variables are by default safe
@@ -726,7 +751,7 @@ class PHP_SAFE extends PHP_Parser {
       //find if the variable already exists. In this case the variable is updated
       //If the variable is an object and it is tainted, then the contents of that variable are also tainted
       $object_variable_name = $this->get_object_name( $variable_name );
-      $variable_name_index = $this->get_object_property_index( $function_name, $variable_name );
+      $variable_name_index = $this->get_object_property_index( $file_name, $function_name, $variable_name );
 
       // if it is a variable process it. Otherwise leave this function 
       if ( !is_null( $variable_name_index ) ) {
@@ -763,7 +788,7 @@ class PHP_SAFE extends PHP_Parser {
 
       //If the variable already exists in the scope the new variable depends on it and it is not in the same PHP line
       if ( ($variable_name_index) && ($this->start_of_php_line( $file_name, $block_start_index ) > $this->start_of_php_line( $file_name, $this->parser_variables[ $variable_name_index ][ 'file_tokens_end_index' ] )) ) {
-        $newVariableNameIndex = $this->get_variable_index( $variable_name, $function_name );
+        $newVariableNameIndex = $this->get_variable_index( $file_name, $variable_name, $function_name );
         //do not add a dependency if it already exists
         $match = false;
         if ( is_array( $this->parser_variables[ $newVariableNameIndex ][ 'variable_dependencies_index' ] ) ) {
@@ -781,7 +806,7 @@ class PHP_SAFE extends PHP_Parser {
 
       //if the variable is used as a single code (maybe inside HTML code) and is tainted, then we may have a vulnerability
       if ( TAINTED === $tainted ) {
-        $variable_name_index = $this->get_variable_index( $variable_name, $function_name );
+        $variable_name_index = $this->get_variable_index( $file_name, $variable_name, $function_name );
         //obtain the line of code where the variable is located
         $start_of_php_line_index = $this->start_of_php_line( $file_name, $block_start_index );
         $end_of_php_line_index = $this->end_of_php_line( $file_name, $block_start_index );
@@ -809,7 +834,9 @@ class PHP_SAFE extends PHP_Parser {
 
           //vulnerabilityClassification is XSS
           if ( true === $is_single_code ) {
-            $this->parser_variables[ $variable_name_index ][ 'vulnerability_classification' ] = XSS;
+            if ( TAINTED === $this->parser_variables[ $variable_name_index ][ 'tainted' ] ) {
+              $this->parser_variables[ $variable_name_index ][ 'vulnerability_classification' ] = XSS;
+            }
             $this->parser_variables[ $variable_name_index ][ 'output_variable' ] = OUTPUT_VARIABLE;
           }
         }
@@ -902,7 +929,7 @@ class PHP_SAFE extends PHP_Parser {
         foreach ( $value as $output ) {
           //note: PHP functions are not case sensitive
           if ( 0 === strcasecmp( $output, $previous_containing_function ) ) {
-            $variable_protection_functions[ ] = $output;
+            $variable_protection_functions = $output;
             $found_variable_filter = true;
             break;
           }

@@ -43,7 +43,6 @@ function strip_script( $string ) {
   $string = preg_replace( "/<style[^>]*>/", "", $string );
   return $string;
 }
-
 //    function a() {
 //      global $z;
 //
@@ -52,13 +51,13 @@ function strip_script( $string ) {
 //      return 1;
 //    }
 
-//    function show_names( $a, $b, $c, $d ) {
-//      echo "<br />$a<br />";
-//      echo "<br />$b<br />";  //VULNERABILITY
-//      echo "<br />$c<br />";
-//      echo "<br />$d<br />";
-//      return $a . $b . $c . $d;
-//    }
+    function show_names( $a, $b, $c, $d ) {
+      echo "<br />$a<br />";
+      echo "<br />$b<br />";  //VULNERABILITY
+      echo "<br />$c<br />";
+      echo "<br />$d<br />";
+      return $a . $b . $c . $d;
+    }
 ?>
 
 <meta http-equiv="content-type" content="text/html; charset=ISO-8859-1" />
