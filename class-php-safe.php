@@ -383,7 +383,6 @@ class PHP_SAFE extends PHP_Parser {
     for ( $i = $block_start_index; $i < $block_end_index; $i++ ) {
       //search for other variables after the equal sign
       $variable_tainted = UNTAINTED;
-      $vulnerability_classification = null;
 
       //it is a variable
       if ( ( $this->is_variable( $file_name, $i ) ) || ( $this->is_property( $file_name, $i ) ) ) {
