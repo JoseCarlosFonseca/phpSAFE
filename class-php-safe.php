@@ -408,7 +408,8 @@ class PHP_SAFE extends PHP_Parser {
         //if the variable is tainted and it is not filtered, then we have a vulnerability
         if ( ( TAINTED === $this->parser_variables[ $variable_index ][ 'tainted' ] )
             && (OUTPUT_VARIABLE === $this->parser_variables[ $variable_index ][ 'output_variable' ])
-            && (!( $this->is_variable_filtered( $file_name, $i )) ) ) {
+            && (!( $this->is_variable_filtered( $file_name, $i )) )
+            && (!is_null( $vulnerability_classification )) ) {
           $this->parser_variables[ $variable_index ][ 'vulnerability_classification' ] = $vulnerability_classification;
         }
 
@@ -530,9 +531,9 @@ class PHP_SAFE extends PHP_Parser {
                     if ( TAINTED === $this->parser_variables[ $output_variable_index ][ 'tainted' ] ) {
                       if ( $this->is_variable_filtered( $file_name, $j ) ) {
                         //untaint the original variable, because it is filtered
-                        $this->parser_variables[ $output_variable_index ][ 'tainted' ]=UNTAINTED;
-                        $this->parser_variables[ $output_variable_index ][ 'vulnerability_classification' ]=FILTERED;
-                        
+                        $this->parser_variables[ $output_variable_index ][ 'tainted' ] = UNTAINTED;
+                        $this->parser_variables[ $output_variable_index ][ 'vulnerability_classification' ] = FILTERED;
+
                         $variable_tainted = UNTAINTED;
                         $variable_vulnerability_classification = FILTERED;
                         if ( is_null( $vulnerability_classification ) ) {
@@ -1050,7 +1051,21 @@ class PHP_SAFE extends PHP_Parser {
    * creates the multi-dimensional associative array with the PHP vulnerable variables
    */
   function set_vulnerable_variables() {
-    for ( $i = 0, $count = count( $this->parser_variables ); $i < $count; $i++ ) {
+    for ( $i = 0, $count_parser_variables = count( $this->parser_variables ); $i < $count_parser_variables; $i++ ) {
+
+      //remove duplicate vulnerable variables
+      $exist = false;
+      for ( $j = 0, $count_vulnerable_variables = count( $this->vulnerable_variables ); $j < $count_vulnerable_variables; $j++ ) {
+        if ( ($this->parser_variables[ $i ][ 'variable_name' ] === $this->vulnerable_variables[ $j ][ 'variable_name' ])
+            && ($this->parser_variables[ $i ][ 'file_name' ] === $this->vulnerable_variables[ $j ][ 'file_name' ])
+            && ($this->parser_variables[ $i ][ 'file_line_number' ] === $this->vulnerable_variables[ $j ][ 'file_line_number' ]) ) {
+          $exist = true;
+          break;
+        }
+      }
+      if ( $exist === true ) {
+        continue;
+      }
 
       $variable = $this->parser_variables[ $i ];
       if ( (UNKNOWN != $variable[ 'vulnerability_classification' ] )
