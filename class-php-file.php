@@ -64,16 +64,16 @@ class Php_File {
    * @param string $file_name with the PHP file name that is going to be parsed
    */
   function include_php_files( $file_name ) {
-    $file_name = realpath(dirname($file_name )). DIRECTORY_SEPARATOR.basename($file_name );
+    $file_name = realpath( dirname( $file_name ) ) . DIRECTORY_SEPARATOR . basename( $file_name );
 
-  if ( $count = $this->php_file_tokens( $file_name ) ) {
+    if ( $count = $this->php_file_tokens( $file_name ) ) {
 
       //TODO use include_paths()
       $file_path = dirname( $file_name ) . DIRECTORY_SEPARATOR;
 
       //find T_INCLUDE, T_INCLUDE_ONCE, T_REQUIRE, T_REQUIRE_ONCE within the $files_tokens[$file_name]
       for ( $i = 0, $count; $i < $count; $i++ ) {
-        $token=$this->files_tokens[ $file_name ];
+        $token = $this->files_tokens[ $file_name ];
         if ( ( is_array( $token[ $i ] ) )
             && ( ( T_INCLUDE === $token[ $i ][ 0 ] )
             || ( T_INCLUDE_ONCE === $token[ $i ][ 0 ] )
@@ -123,9 +123,9 @@ class Php_File {
    * @param string $file_name with the PHP file name that is going to be parsed
    */
   function php_file_tokens( $file_name ) {
-    $file_name = realpath(dirname($file_name )). DIRECTORY_SEPARATOR.basename($file_name );
+    $file_name = realpath( dirname( $file_name ) ) . DIRECTORY_SEPARATOR . basename( $file_name );
 
-    if ( file_exists( $file_name ) ) {
+    if ( (file_exists( $file_name ) ) && (is_file( $file_name )) ) {
       $file_contents = file_get_contents( $file_name );
       $this->files_tokens[ $file_name ] = token_get_all( $file_contents );
 

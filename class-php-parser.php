@@ -42,6 +42,12 @@ class PHP_Parser {
   public $files_functions;
 
   /**
+   * Multi-dimensional array with all the functions used in the code
+   * @var array
+   */
+  public $used_functions;
+
+  /**
    * Multi-dimensional array with the PHP user defined functions stack
    * This is used to test for recursive functions, so they are not parsed more than once at a time
    * @var array
@@ -77,29 +83,32 @@ class PHP_Parser {
   function __construct( $file_name ) {
     $this->files = new Php_File( $file_name );
 
-    //add all the user defined functions to the multi-dimensional array $filesFunctions
-    $this->include_all_php_files_functions();
+    //only analyze the file if the file exists
+    if ( !is_null( $this->files->files_tokens ) ) {
+      //add all the user defined functions to the multi-dimensional array $filesFunctions
+      $this->include_all_php_files_functions();
 
-    //parse all the functions that are not executed
-    for ( $i = (count( $this->files_functions ) - 1); $i > 0; $i-- ) {
-      if ( ('not executed' === $this->files_functions[ $i ][ 'executed' ] )
-          && ('function' != $this->files_functions[ $i ][ 'function_name' ] ) ) {
-        $file_name = $this->files_functions[ $i ][ 'file_name' ];
-        $block_start_index = $this->files_functions[ $i ][ 'file_tokens_start_index' ];
-        $block_start_index = $this->find_token( $file_name, $block_start_index, '{' );
-        $block_end_index = $this->files_functions[ $i ][ 'file_tokens_end_index' ];
-        //parse the PHP files and searches for vulnerabilities. Adds the variables to the multi-dimensional array $parser_variables
-        $this->main_parser( $file_name, $this->files_functions[ $i ][ 'function_name' ], $block_start_index, $block_end_index );
+      //parse all the functions that are not executed
+      for ( $i = (count( $this->files_functions ) - 1); $i > 0; $i-- ) {
+        if ( ('not executed' === $this->files_functions[ $i ][ 'executed' ] )
+            && ('function' != $this->files_functions[ $i ][ 'function_name' ] ) ) {
+          $file_name = $this->files_functions[ $i ][ 'file_name' ];
+          $block_start_index = $this->files_functions[ $i ][ 'file_tokens_start_index' ];
+          $block_start_index = $this->find_token( $file_name, $block_start_index, '{' );
+          $block_end_index = $this->files_functions[ $i ][ 'file_tokens_end_index' ];
+          //parse the PHP files and searches for vulnerabilities. Adds the variables to the multi-dimensional array $parser_variables
+          $this->main_parser( $file_name, $this->files_functions[ $i ][ 'function_name' ], $block_start_index, $block_end_index );
+        }
       }
+
+      //parse the PHP files and searches for vulnerabilities. Adds the variables to the multi-dimensional array $parser_variables
+      $this->main_parser( null, null, null, null );
+
+      //add the vulnerable variables to the multi-dimensional array $vulnerable_variables
+      $this->set_vulnerable_variables();
+      //add the output variables to the multi-dimensional array $output_V_variables
+      $this->set_output_variables();
     }
-
-    //parse the PHP files and searches for vulnerabilities. Adds the variables to the multi-dimensional array $parser_variables
-    $this->main_parser( null, null, null, null );
-
-    //add the vulnerable variables to the multi-dimensional array $vulnerable_variables
-    $this->set_vulnerable_variables();
-    //add the output variables to the multi-dimensional array $output_V_variables
-    $this->set_output_variables();
   }
 
   /**
@@ -151,6 +160,7 @@ class PHP_Parser {
           'user_defined' => 'not user defined',
           'input' => 'not input',
           'output' => 'not output',
+          'vulnerability' => 'none',
           'filter' => 'not filter',
           'revert_filter' => 'not revert filter',
           'other' => 'other',
@@ -229,6 +239,7 @@ class PHP_Parser {
               'user_defined' => 'not user defined',
               'input' => 'not input',
               'output' => 'not output',
+          'vulnerability' => 'none',
               'filter' => 'not filter',
               'revert_filter' => 'not revert filter',
               'other' => 'other',
@@ -237,6 +248,15 @@ class PHP_Parser {
           } elseif ( T_FUNCTION === $this->files->files_tokens[ $file_name ][ $j ][ 0 ] ) {
             //skip this token
             $j = $this->find_match( $file_name, $j, '{' );
+          }
+        }
+
+        //find the last file line number of the called function
+        $file_end_function_line = $file_start_function_line;
+        for ( $k = $file_token_end_function_index; $k >= 0; $k-- ) {
+          if ( is_array( $this->files->files_tokens[ $file_name ][ $k ] ) ) {
+            $file_end_function_line = $this->files->files_tokens[ $file_name ][ $k ][ 2 ];
+            break;
           }
         }
 
@@ -284,6 +304,7 @@ class PHP_Parser {
             //note: PHP functions are not case sensitive
             if ( 0 === strcasecmp( $output, $called_function_name ) ) {
               $this->files_functions[ $i ][ 'called_functions' ][ $j ][ 'output' ] = 'output';
+              $this->files_functions[ $i ][ 'called_functions' ][ $j ][ 'vulnerability' ] = $key;
               break;
             }
           }
@@ -417,12 +438,12 @@ class PHP_Parser {
             || ( T_OBJECT_CAST === $token[ $i ][ 0 ] )
             || ( T_BOOL_CAST === $token[ $i ][ 0 ] )
             || ( T_UNSET_CAST === $token[ $i ][ 0 ] ) ) {
-          $i = $this->parse_function( $file_name, $function_name, $i );
+          $i = $this->parse_function_method( $file_name, $function_name, $i );
 
 //function call
         } elseif ( ($this->is_function( $file_name, $i ))
             || ($this->is_method( $file_name, $i )) ) {
-          $i = $this->parse_function( $file_name, $function_name, $i );
+          $i = $this->parse_function_method( $file_name, $function_name, $i );
 
 //function definition should be skipped because it is executed when called in the PHP code
         } elseif ( T_FUNCTION === $token[ $i ][ 0 ] ) {
@@ -440,7 +461,7 @@ class PHP_Parser {
             || ( T_CONST === $token[ $i ][ 0 ] )
             || (($this->is_variable( $file_name, $i ))
             || ($this->is_property( $file_name, $i ))) ) {
-          $i = $this->parse_variable( $file_name, $function_name, $i );
+          $i = $this->parse_variable_property( $file_name, $function_name, $i );
 
 //T_AND_EQUAL T_CONCAT_EQUAL T_DIV_EQUAL T_MINUS_EQUAL T_MOD_EQUAL T_MUL_EQUAL T_OR_EQUAL T_PLUS_EQUAL T_XOR_EQUAL T_SL_EQUAL T_SR_EQUAL
         } elseif ( ( T_AND_EQUAL === $token[ $i ][ 0 ] )
@@ -578,7 +599,7 @@ class PHP_Parser {
     $expression = $this->parse_expression_vulnerability( $file_name, $function_name, $block_start_index, $block_as_index, null, null );
 
     if ( is_null( $expression[ 'variable_dependencies_index' ] ) ) {
-      $this->parse_variable( $file_name, $function_name, $block_as_index + 1 );
+      $this->parse_variable_property( $file_name, $function_name, $block_as_index + 1 );
     } else {
       if ( ( is_array( $this->files->files_tokens[ $file_name ][ $block_start_index ] ) )
           && ( ( $this->is_variable( $file_name, $block_start_index ) ) || ( $this->is_property( $file_name, $block_start_index ) ) ) ) {
@@ -936,7 +957,7 @@ class PHP_Parser {
    * @param string $block_start_index with the start index of tokens of the multi-dimensional array $files_tokens that is going to be parsed
    * If this argument is null it is assumed as the begining of the multi-dimensional array $files_tokens
    */
-  function parse_function( $file_name, $function_name, $block_start_index ) {
+  function parse_function_method( $file_name, $function_name, $block_start_index ) {
     $this->debug( sprintf( "%s:%s:%s :: %s", __CLASS__, __METHOD__, __FUNCTION__, serialize( func_get_args() ) ) . '<br />' );
 
     $called_function_name = $this->get_function_method_name( $file_name, $block_start_index );
@@ -965,39 +986,28 @@ class PHP_Parser {
     }
 
     if ( !is_null( $called_function_index ) ) {
-//found the code of the PHP user defined function
-//so it is a PHP user defined function
-      $called_function_file_name = $this->files_functions[ $called_function_index ][ 'file_name' ];
+      //found the code of the PHP user defined function
+      //so it is a PHP user defined function
+      //if it is a user defined function test to see if it is already being parsed
+      //should not parse functions with recursivity because it will never stop
+      //if the function is not already being parsed then parse it
+      if ( (!is_array( $this->files_functions_stack )) || (!in_array( $called_function_index, $this->files_functions_stack )) ) {
 
-//if it is a user defined function test to see if it is already being parsed
-//should not parse functions with recursivity because it will never stop
-      $is_function_already_being_parsed = false;
-      for ( $i = 0, $count = count( $this->files_functions_stack ); $i < $count; $i++ ) {
-        if ( $called_function_name === $this->files_functions_stack[ $i ][ 'function_name' ] ) {
-          $is_function_already_being_parsed = true;
-          break;
-        }
-      }
+        //push the function to the stack
+        $this->files_functions_stack[ ] = $called_function_index;
 
-//if the function is not already being parsed then parse it
-      if ( false === $is_function_already_being_parsed ) {
-//push the function to the stack
-        $this->files_functions_stack[ ] = array(
-          'function_name' => $called_function_name,
-        );
+        $this->parse_user_defined_function_method_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $called_function_name, $called_function_index );
 
-        $this->parse_user_defined_function_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $called_function_name );
-
-//pop the function from the stack
-//unset the $files_functions_stack but keep the indexes untouched
+        //pop the function from the stack
+        //unset the $files_functions_stack but keep the indexes untouched
         unset( $this->files_functions_stack[ count( $this->files_functions_stack ) - 1 ] );
-//normalize the indexes
+        //normalize the indexes
         $this->files_functions_stack = array_values( $this->files_functions_stack );
       }
 
 //all other functions that are not defined in the parsed PHP files, like echo, print, exit
     } else {
-      $this->parse_other_function_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $called_function_name );
+      $this->parse_other_function_method_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $called_function_name );
     }
 
     return( $block_end_index);
@@ -1016,7 +1026,7 @@ class PHP_Parser {
    * @param string $block_end_index with the start index of tokens of the multi-dimensional array $files_tokens of the calling function
    * @param string $called_function_name with the name of the function, the called function
    */
-  function parse_user_defined_function_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $called_function_name ) {
+  function parse_user_defined_function_method_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $called_function_name, $called_function_index ) {
     
   }
 
@@ -1033,7 +1043,7 @@ class PHP_Parser {
    * @param string $block_end_index with the start index of tokens of the multi-dimensional array $files_tokens of the calling function
    * @param string $called_function_name with the name of the function, the called function
    */
-  function parse_other_function_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $called_function_name ) {
+  function parse_other_function_method_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $called_function_name ) {
     
   }
 
@@ -1152,7 +1162,7 @@ class PHP_Parser {
    * 
    * @return int with the index of multi-dimensional associative array $files_tokens with the end of the variable
    */
-  function parse_variable( $file_name, $function_name, $block_start_index ) {
+  function parse_variable_property( $file_name, $function_name, $block_start_index ) {
     $this->debug( sprintf( "%s:%s:%s :: %s", __CLASS__, __METHOD__, __FUNCTION__, serialize( func_get_args() ) ) . '<br />' );
 
     $code_type = PHP_CODE;
@@ -1176,10 +1186,12 @@ class PHP_Parser {
     //$block_end_index is passed by reference
     $variable_name = $this->get_variable_property_complete_array_name( $file_name, $block_end_index );
 
-    //If there is a function call inside the variable definition it should be executed
-    $this->main_parser( $file_name, $function_name, $block_start_index + 1, $block_end_index );
+    if ( $block_end_index > $block_start_index + 1 ) {
+      //If there is a function call inside the variable definition it should be executed
+      $this->main_parser( $file_name, $function_name, $block_start_index + 1, $block_end_index );
+    }
 
-    $this->parse_variable_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $variable_name, $variable_scope, $code_type );
+    $this->parse_variable_property_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $variable_name, $variable_scope, $code_type );
 
     return( $block_end_index);
   }
@@ -1202,7 +1214,7 @@ class PHP_Parser {
    * 
    * @return int with the index of multi-dimensional associative array $files_tokens with the end of the variable
    */
-  function parse_variable_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $variable_name, $variable_scope, $code_type ) {
+  function parse_variable_property_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $variable_name, $variable_scope, $code_type ) {
     
   }
 
@@ -1227,7 +1239,7 @@ class PHP_Parser {
       $block_end_index = $this->end_of_php_line( $file_name, $block_start_index );
     }
 
-    $i = $this->parse_variable( $file_name, $function_name, $block_start_index + 1 );
+    $i = $this->parse_variable_property( $file_name, $function_name, $block_start_index + 1 );
 
     $v = $block_start_index + 1;
 //$v is passed by reference

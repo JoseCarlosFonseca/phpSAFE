@@ -42,7 +42,7 @@
       $test4 = htmlentities( addslashes( $_POST[ 'user_secret' ] ) );
       echo "<br />Ola$test4<br />";
 
-      show_names( $test1, $test2, $test3, $test4 );
+      show_names( $test1, $test2, $test3, (string) another_function($test4) );
 
       echo show_names2( $test1, $test3, $test4 ); //VULNERABILITY
 

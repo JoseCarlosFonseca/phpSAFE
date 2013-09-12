@@ -35,6 +35,10 @@ if ( extension_loaded( 'tokenizer' ) === false ) {
   exit;
 }
 
+if ( isset( $_POST[ 'php_file' ] ) ) {
+  $_POST[ 'php_file' ] = trim( $_POST[ 'php_file' ] );
+}
+
 if ( !isset( $_POST[ 'choose_new_php_file' ] ) ) {
   if ( isset( $_POST[ 'php_file' ] ) ) {
     $current_directory = $_POST[ 'php_file' ];
@@ -52,13 +56,22 @@ if ( !isset( $_POST[ 'choose_new_php_file' ] ) ) {
 _END;
 } else {
   echo "Security analysis of the file <b>" . $_POST[ 'php_file' ] . "</b><br /><br />";
-    $time_start = microtime( true );
-if ( $vulnerability_check = new PHP_SAFE( htmlspecialchars( $_POST[ 'php_file' ] ) ) ) {
-  $time_end = microtime( true );
-  $time = $time_end - $time_start;
+  $time_start = microtime( true );
+  $vulnerability_check = new PHP_SAFE( htmlspecialchars( $_POST[ 'php_file' ] ) );
+  if ( count( $vulnerability_check->get_files_tokens() ) > 0 ) {
+    $time_end = microtime( true );
+    $time = $time_end - $time_start;
+
+    $hours = $time / 60 / 60;
+    $minutes = ($time - floor( $hours ) * 60 * 60) / 60;
+    $seconds = ($time - floor( $hours ) * 60 * 60 - floor( $minutes ) * 60);
 
     echo "<form method='post' action='index.php'><input type='hidden' name='php_file' value='" . $_POST[ 'php_file' ] . "' /><input type='submit' value ='Choose another file' /></form>";
-    echo "<hr><b>" . count( $vulnerability_check->get_vulnerable_variables() ) . " vulnerabilities found in ".sprintf( '%01.2f', $time )." seconds!</b><br />";
+    if ( $time > 1 ) {
+      echo "<hr><b>" . count( $vulnerability_check->get_vulnerable_variables() ) . " vulnerabilities found in " . floor( $hours ) . ' hours, ' . floor( $minutes ) . ' minutes and ' . floor( $seconds ) . ' seconds. It was a total of ' . sprintf( '%01.2f', $time ) . " seconds!</b><br />";
+    } else {
+      echo "<hr><b>" . count( $vulnerability_check->get_vulnerable_variables() ) . " vulnerabilities found in " . sprintf( '%01.2f', $time ) . " seconds!</b><br />";
+    }
     echo "<hr><form method='post'><input type='button' value ='Show All' onclick='showAll()'/><input type='button' value ='Hide All' onclick='hideAll()'/><input type='button' value ='Default All' onclick='defaultAll()'/><br /></form>";
 
     echo "<hr><form method='post'><input type='checkbox' id='checkboxParserDebug' onclick='showParserDebug(this)'/>Show/Hide Parser Debug (<b>" . count( $vulnerability_check->get_parser_debug() ) . "</b>) <br /><pre><span id='parserDebug'></span></pre></form>";
@@ -288,6 +301,7 @@ if ( $vulnerability_check = new PHP_SAFE( htmlspecialchars( $_POST[ 'php_file' ]
     <?php
   } else {
     echo "File does not exist!";
+    echo "<form method='post' action='index.php'><input type='hidden' name='php_file' value='" . $_POST[ 'php_file' ] . "' /><input type='submit' value ='Choose another file' /></form>";
   }
 }
 echo '</div>';
