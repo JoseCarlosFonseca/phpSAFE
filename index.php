@@ -79,6 +79,7 @@ _END;
     echo "<hr><form method='post'><input type='checkbox' id='checkboxOutputVariables' onclick='showOutputVariables(this)'/>Show/Hide Output Variables (<b>" . count( $vulnerability_check->get_output_variables() ) . "</b>) <br /><pre><span id='outputVariables'></span></pre></form>";
     echo "<hr><form method='post'><input type='checkbox' id='checkboxParserVariables' onclick='showParserVariables(this)'/>Show/Hide Parser Variables (<b>" . count( $vulnerability_check->get_parser_variables() ) . "</b>) <br /><pre><span id='parserVariables'></span></pre></form>";
     echo "<hr><form method='post'><input type='checkbox' id='checkboxFilesFunctions' onclick='showFilesFunctions(this)'/>Show/Hide Files Functions (<b>" . count( $vulnerability_check->get_files_functions() ) . "</b>) <br /><pre><span id='filesFunctions'></span></pre></form>";
+    echo "<hr><form method='post'><input type='checkbox' id='checkboxUsedFunctions' onclick='showUsedFunctions(this)'/>Show/Hide Used Functions (<b>" . count( $vulnerability_check->get_used_functions() ) . "</b>) <br /><pre><span id='usedFunctions'></span></pre></form>";
     echo "<hr><form method='post'><input type='checkbox' id='checkboxFilesIncludeRequire' onclick='showFilesIncludeRequire(this)'/>Show/Hide Files Include Require (<b>" . count( $vulnerability_check->get_files_include_require() ) . "</b>) <br /><pre><span id='filesIncludeRequire'></span></pre></form>";
     echo "<hr><form method='post'><input type='checkbox' id='checkboxFilesTokens' onclick='showFilesTokens(this)'/>Show/Hide Files Tokens (<b>" . count( $vulnerability_check->get_files_tokens() ) . "</b>) <br /><pre><span id='filesTokens'></span></pre></form>";
 
@@ -156,6 +157,20 @@ _END;
           document.getElementById('filesFunctions').innerHTML = dump(php_var) //Could also be info.innerHTML = ...
         } else {
           document.getElementById('filesFunctions').innerHTML = '' //Could also be info.innerHTML = ...
+
+        }
+        return
+      }
+
+      function showUsedFunctions(checkBox)
+      {
+        if (true == checkBox.checked)
+        {
+          var php_var = <?php echo json_encode( $vulnerability_check->get_used_functions() ); ?>;
+
+          document.getElementById('usedFunctions').innerHTML = dump(php_var) //Could also be info.innerHTML = ...
+        } else {
+          document.getElementById('usedFunctions').innerHTML = '' //Could also be info.innerHTML = ...
 
         }
         return
@@ -288,6 +303,9 @@ _END;
 
         document.getElementById('checkboxFilesFunctions').checked = false;
         showFilesFunctions(document.getElementById('checkboxFilesFunctions'));
+
+        document.getElementById('checkboxUsedFunctions').checked = false;
+        showFilesFunctions(document.getElementById('checkboxUsedFunctions'));
 
         document.getElementById('checkboxFilesIncludeRequire').checked = false;
         showFilesIncludeRequire(document.getElementById('checkboxFilesIncludeRequire'));

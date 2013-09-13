@@ -254,71 +254,21 @@ class PHP_SAFE extends PHP_Parser {
   function parse_other_function_method_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $called_function_name ) {
     $this->debug( sprintf( "%s:%s:%s :: %s", __CLASS__, __METHOD__, __FUNCTION__, serialize( func_get_args() ) ) . '<br />' );
 
-    // it is one of the output functions. It is not a user defined function, although it could be a WordPress function
-    //test if it is one of the output functions
-    //output functions with tainted variables originate vulnerabilities
-    $vulnerability_classification = null;
-    $output_variable_attribute = REGULAR_VARIABLE;
-    foreach ( Vulnerable_Output::$OUTPUT_FUNCTIONS as $key => $value ) {
-      foreach ( $value as $output_function ) {
-        //the name of the function is the same of any one from the $OUTPUT_FUNCTIONS
-        //or it is an object method and the name after the -> is the same of any one from the $OUTPUT_FUNCTIONS
-        if ( 0 === strcasecmp( $output_function, $called_function_name ) ) {//note: PHP functions are not case sensitive
-          $vulnerability_classification = $key;
-          $output_variable_attribute = OUTPUT_VARIABLE;
-          //an output function can only be responsible for one kind of vulnerability so end the search
-          //leave outter foreach
-          break 2;
-        }
-      }
-    }
-
-    //test if it is one of the filtering functions
-    //note: many filtering functions are user defined functions, namely wp functions
-    $is_filtering_function = false;
-    foreach ( Vulnerable_Filter::$VARIABLE_FILTERS as $key => $value ) {
-      foreach ( $value as $filtering_function ) {
-        //note: PHP functions are not case sensitive
-        if ( 0 === strcasecmp( $filtering_function, $called_function_name ) ) {
-          $is_filtering_function = true;
-          //leave outter foreach
-          break 2;
-        }
-      }
-    }
-
-    //test if it is one of the revert filtering functions
-    //note: many revert filtering functions are user defined functions, namely wp functions
-    $is_revert_filtering_function = false;
-    foreach ( Vulnerable_Filter::$REVERT_VARIABLE_FILTERS as $key => $value ) {
-      foreach ( $value as $revert_filtering_function ) {
-        //note: PHP functions are not case sensitive
-        if ( 0 === strcasecmp( $revert_filtering_function, $called_function_name ) ) {
-          $is_revert_filtering_function = true;
-          //leave outter foreach
-          break 2;
-        }
-      }
-    }
-
-    //test if it is one of the input functions
-    //note: many input functions are user defined functions, namely wp functions
-    $input_function_variable = REGULAR_VARIABLE;
-    foreach ( Vulnerable_Input::$INPUT_FUNCTIONS as $key => $value ) {
-      foreach ( $value as $input_function ) {
-        //note: PHP functions are not case sensitive
-        if ( 0 === strcasecmp( $input_function, $called_function_name ) ) {
-          $input_function_variable = INPUT_VARIABLE;
-          //leave outter foreach
-          break 2;
-        }
+    for ( $i = 0, $count = count( $this->used_functions ); $i < $count; $i++ ) {
+      if ( 0 === strcasecmp( $this->used_functions[ $i ][ 'name' ], $called_function_name ) ) {
+        ('none' === $this->used_functions[ $i ][ 'vulnerability' ] ? $vulnerability_classification = null : $vulnerability_classification = $this->used_functions[ $i ][ 'vulnerability' ]);
+        ('not output' === $this->used_functions[ $i ][ 'output' ] ? $output_variable_attribute = REGULAR_VARIABLE : $output_variable_attribute = OUTPUT_VARIABLE);
+        ('not filter' === $this->used_functions[ $i ][ 'filter' ] ? $is_filtering_function = false : $is_filtering_function = true);
+        ('not revert filter' === $this->used_functions[ $i ][ 'revert_filter' ] ? $is_revert_filtering_function = false : $is_revert_filtering_function = true);
+        ('not input' === $this->used_functions[ $i ][ 'input' ] ? $input_function_variable = REGULAR_VARIABLE : $input_function_variable = INPUT_VARIABLE);
+        break;
       }
     }
 
     //it is an input function
     if ( INPUT_VARIABLE === $input_function_variable ) {
       //add a new variable, which is the return value of the input function
-      $variable_name = $input_function;
+      $variable_name = $called_function_name;
       //If the variable is an object and it is tainted, then the contents of that variable are also tainted
       //so get the object part of the property
       $object_variable_name = $this->get_object_name( $variable_name );
@@ -347,21 +297,6 @@ class PHP_SAFE extends PHP_Parser {
     $current_variable_index = count( $this->parser_variables );
 
     $expression = $this->parse_expression_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $output_variable_attribute, $vulnerability_classification );
-    /*
-      //get the variables of the arguments of the function
-      for ( $i = $block_start_index; $i < $block_end_index; $i++ ) {
-      //get the argument of the call of the function
-      $next_argument_index = $this->find_token( $file_name, $i, ',' );
-      if ( $next_argument_index > $block_end_index ) {
-      $next_argument_index = $block_end_index;
-      }
-
-      //the argument may be an expression, instead of a single variable
-      $expression = $this->parse_expression_vulnerability( $file_name, $function_name, $i, $next_argument_index, $output_variable_attribute, $vulnerability_classification );
-
-      $i = $next_argument_index;
-      }
-     */
 
     if ( $is_filtering_function ) {
       for ( $i = $current_variable_index, $count = count( $this->parser_variables ); $i < $count; $i++ ) {
@@ -626,12 +561,13 @@ class PHP_SAFE extends PHP_Parser {
       //regular variables are by default safe
       $input_variable = REGULAR_VARIABLE;
       $tainted = UNTAINTED;
+      $short_variable_name = $this->get_variable_property_name( $file_name, $block_start_index );
       //search for input vulnerable variables
       foreach ( Vulnerable_Input::$INPUT_VARIABLES as $key => $value ) {
         //search for PHP reserved variables
         foreach ( $value as $input_array_var ) {
           //if it is a PHP reserved variables
-          if ( $this->get_variable_property_name( $file_name, $block_start_index ) === $input_array_var ) {
+          if ( $short_variable_name === $input_array_var ) {
             $input_variable = INPUT_VARIABLE;
             $tainted = TAINTED;
             //leave outter foreach
@@ -711,16 +647,17 @@ class PHP_SAFE extends PHP_Parser {
             && (T_CLOSE_TAG === $this->files->files_tokens[ $file_name ][ $end_of_php_line_index ][ 0 ] ) ) {
           $is_single_code = true;
           for ( $i = $start_of_php_line_index; $i < $end_of_php_line_index; $i++ ) {
+            $token = $this->files->files_tokens[ $file_name ][ $i ][ 0 ];
             //it is considered as a single code if it has no loops nor conditional structures
-            if ( (T_FOR === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] )
-                || (T_FOREACH === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] )
-                || (T_DO === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] )
-                || (T_WHILE === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] )
-                || (T_ENDWHILE === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] )
-                || (T_ELSEIF === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] )
-                || (T_ELSE === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] )
-                || (T_IF === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] )
-                || (T_SWITCH === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] )
+            if ( (T_FOR === $token )
+                || (T_FOREACH === $token )
+                || (T_DO === $token )
+                || (T_WHILE === $token )
+                || (T_ENDWHILE === $token )
+                || (T_ELSEIF === $token )
+                || (T_ELSE === $token )
+                || (T_IF === $token )
+                || (T_SWITCH === $token )
                 || ('=' === $this->files->files_tokens[ $file_name ][ $i ] ) ) {
               $is_single_code = false;
               break;
@@ -782,10 +719,11 @@ class PHP_SAFE extends PHP_Parser {
         if ( T_STRING === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] ) {
           $found_variable_filter = false;
           //test if it is one of the filtering functions                    
+          $function_name = $this->files->files_tokens[ $file_name ][ $i ][ 1 ];
           foreach ( Vulnerable_Filter::$VARIABLE_FILTERS as $key => $value ) {
             foreach ( $value as $output ) {
               //note: PHP functions are not case sensitive
-              if ( 0 === strcasecmp( $output, $this->files->files_tokens[ $file_name ][ $i ][ 1 ] ) ) {
+              if ( 0 === strcasecmp( $output, $function_name ) ) {
                 $variable_protection_functions[ ] = $output;
                 $found_variable_filter = true;
                 //leave outter foreach
@@ -878,11 +816,12 @@ class PHP_SAFE extends PHP_Parser {
       if ( is_array( $this->files->files_tokens[ $file_name ][ $i ] ) ) {
         if ( T_STRING === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] ) {
           $found_variable_filter = false;
-          //test if it is one of the filtering functions                    
+          //test if it is one of the filtering functions      
+          $function_name = $this->files->files_tokens[ $file_name ][ $i ][ 1 ];
           foreach ( Vulnerable_Filter::$REVERT_VARIABLE_FILTERS as $key => $value ) {
             foreach ( $value as $output ) {
               //note: PHP functions are not case sensitive
-              if ( 0 === strcasecmp( $output, $this->files->files_tokens[ $file_name ][ $i ][ 1 ] ) ) {
+              if ( 0 === strcasecmp( $output, $function_name ) ) {
                 $variable_protection_functions[ ] = $output;
                 $found_variable_filter = true;
                 break 2;
@@ -917,11 +856,12 @@ class PHP_SAFE extends PHP_Parser {
       }
       if ( is_array( $this->files->files_tokens[ $file_name ][ $i ] ) ) {
         if ( T_STRING === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] ) {
-          //test if it is one of the filtering functions                    
+          //test if it is one of the filtering functions     
+          $function_name=$this->files->files_tokens[ $file_name ][ $i ][ 1 ];
           foreach ( Vulnerable_Filter::$REVERT_VARIABLE_FILTERS as $key => $value ) {
             foreach ( $value as $output ) {
               //note: PHP functions are not case sensitive
-              if ( 0 === strcasecmp( $output, $this->files->files_tokens[ $file_name ][ $i ][ 1 ] ) ) {
+              if ( 0 === strcasecmp( $output, $function_name ) ) {
                 return true;
               }
             }

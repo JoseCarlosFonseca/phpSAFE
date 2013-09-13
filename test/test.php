@@ -42,9 +42,9 @@
       $test4 = htmlentities( addslashes( $_POST[ 'user_secret' ] ) );
       echo "<br />Ola$test4<br />";
 
-      show_names( $test1, $test2, $test3, (string) another_function($test4) );
+      show_names( $test1, $test2, $test3, ( string ) another_function( $test4 ) );
 
-      echo show_names2( $test1, $test3, $test4 ); //VULNERABILITY
+      echo show_names2( $test1, $test3, ( int ) $test4 ); //VULNERABILITY
 
       $test5 = show_names( $test1, $test2, $test3, $test4 );
       echo "<br />Ola$test5<br />";  //VULNERABILITY
@@ -72,9 +72,9 @@
 
       echo "<br />Ola" . not_available( $_POST[ 'user_secret' ] ) . "<br />";
 
-        $poll = $this->pollDB->getPollDB( $id );
+      $poll = $this->pollDB->getPollDB( $id );
 
-        
+
 //        unset($test2);
 
       echo "<br />Ola$test2<br />";  //VULNERABILITY
