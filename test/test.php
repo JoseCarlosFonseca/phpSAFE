@@ -112,4 +112,7 @@ _END;
 if ( $_GET[ 'editad' ] != '' ) {
   echo '<input name="editedad" type="hidden" value="' . intval( $_GET[ 'editad' ] ) . '" />';
 }
+
 ?>
+<?php echo str_replace('//', '/', $_SERVER['DOCUMENT_ROOT'].'/'); ?> <!--VULNERABILITY-->
+					

@@ -52,7 +52,7 @@ class PHP_Parser {
    * This is used to test for recursive functions, so they are not parsed more than once at a time
    * @var array
    */
-  protected $files_functions_stack;
+  protected $functions_stack;
 
   /**
    * The parser debug data
@@ -91,13 +91,13 @@ class PHP_Parser {
       //parse all the functions that are not executed
       for ( $i = (count( $this->files_functions ) - 1); $i > 0; $i-- ) {
         if ( ('not executed' === $this->files_functions[ $i ][ 'executed' ] )
-            && ('function' != $this->files_functions[ $i ][ 'function_name' ] ) ) {
-          $file_name = $this->files_functions[ $i ][ 'file_name' ];
-          $block_start_index = $this->files_functions[ $i ][ 'file_tokens_start_index' ];
+            && ('function' != $this->files_functions[ $i ][ 'name' ] ) ) {
+          $file_name = $this->files_functions[ $i ][ 'file' ];
+          $block_start_index = $this->files_functions[ $i ][ 'start_index' ];
           $block_start_index = $this->find_token( $file_name, $block_start_index, '{' );
-          $block_end_index = $this->files_functions[ $i ][ 'file_tokens_end_index' ];
+          $block_end_index = $this->files_functions[ $i ][ 'end_index' ];
           //parse the PHP files and searches for vulnerabilities. Adds the variables to the multi-dimensional array $parser_variables
-          $this->main_parser( $file_name, $this->files_functions[ $i ][ 'function_name' ], $block_start_index, $block_end_index );
+          $this->main_parser( $file_name, $this->files_functions[ $i ][ 'name' ], $block_start_index, $block_end_index );
         }
       }
 
@@ -106,8 +106,8 @@ class PHP_Parser {
 
       //add the vulnerable variables to the multi-dimensional array $vulnerable_variables
       $this->set_vulnerable_variables();
-      //add the output variables to the multi-dimensional array $output_V_variables
-      $this->set_output_variables();
+      //add the output variables to the multi-dimensional array $output_variables
+//      $this->set_output_variables();
     }
   }
 
@@ -120,6 +120,13 @@ class PHP_Parser {
 //loop through all the PHP file names
     foreach ( $this->files->files_tokens as $file_name => $dummy ) {
       $this->include_php_files_functions( $file_name );
+    }
+    for ( $i = 0, $count = count( $this->files_functions ); $i < $count; $i++ ) {
+      for ( $j = 0, $jcount = count( $this->files_functions[ $i ][ 'called_functions' ] ); $j < $jcount; $j++ ) {
+        $called_function_name = $this->files_functions[ $i ][ 'called_functions' ][ $j ][ 'name' ];
+        //add the function to the $used_functions array
+        $this->add_used_functions( $called_function_name );
+      }
     }
   }
 
@@ -156,24 +163,32 @@ class PHP_Parser {
 
         $called_functions[ ] = array(
           'name' => $called_function_name,
-          'file_line_number' => $this->files->files_tokens[ $file_name ][ $i ][ 2 ],
+          'line' => $this->files->files_tokens[ $file_name ][ $i ][ 2 ],
         );
       } elseif ( T_FUNCTION === $this->files->files_tokens[ $file_name ][ $i ][ 0 ] ) {
         //skip this token
         $i = $this->find_match( $file_name, $i, '{' );
       }
     }
+    //find the last file line number of the called function
+    $file_end_function_line = 0;
+    for ( $k = $count - 1; $k >= 0; $k-- ) {
+      if ( is_array( $this->files->files_tokens[ $file_name ][ $k ] ) ) {
+        $file_end_function_line = $this->files->files_tokens[ $file_name ][ $k ][ 2 ];
+        break;
+      }
+    }
 
     //Add the function data to the Multi-dimensional associative array $filesFunctions
     $this->files_functions[ ] = array(
-      'function_name' => 'function',
-      'file_name' => $file_name,
+      'name' => 'function',
+      'file' => $file_name,
       'executed' => 'executed',
-      'file_start_line_number' => 0,
-      'file_end_line_number' => $count,
-      'file_tokens_start_index' => 0,
-      'file_tokens_end_index' => 0,
-      'function_parameters' => null,
+      'start_line' => 0,
+      'end_line' => $file_end_function_line,
+      'start_index' => 0,
+      'end_index' => $count - 1,
+      'parameters' => null,
       'called_functions' => $called_functions,
     );
 
@@ -203,7 +218,7 @@ class PHP_Parser {
           if ( ( $this->is_variable( $file_name, $j )) || ( $this->is_property( $file_name, $j )) ) {
             $function_parameters[ ] = array(
               'parameter_name' => $this->files->files_tokens[ $file_name ][ $j ][ 1 ],
-              'file_line_number' => $this->files->files_tokens[ $file_name ][ $j ][ 2 ],
+              'line' => $this->files->files_tokens[ $file_name ][ $j ][ 2 ],
             );
           }
         }
@@ -228,7 +243,7 @@ class PHP_Parser {
             $called_function_name = $this->get_function_method_name( $file_name, $j );
             $called_functions[ ] = array(
               'name' => $called_function_name,
-              'file_line_number' => $this->files->files_tokens[ $file_name ][ $j ][ 2 ],
+              'line' => $this->files->files_tokens[ $file_name ][ $j ][ 2 ],
             );
             $j = $this->get_variable_property_function_method_last_index( $file_name, $j );
           } elseif ( T_FUNCTION === $token ) {
@@ -248,14 +263,14 @@ class PHP_Parser {
 
         //Add the function data to the Multi-dimensional associative array $filesFunctions
         $this->files_functions[ ] = array(
-          'function_name' => $function_name,
-          'file_name' => $file_name,
+          'name' => $function_name,
+          'file' => $file_name,
           'executed' => 'not executed',
-          'file_start_line_number' => $file_start_function_line,
-          'file_end_line_number' => $file_end_function_line,
-          'file_tokens_start_index' => $file_token_start_function_index,
-          'file_tokens_end_index' => $file_token_end_function_index,
-          'function_parameters' => $function_parameters,
+          'start_line' => $file_start_function_line,
+          'end_line' => $file_end_function_line,
+          'start_index' => $file_token_start_function_index,
+          'end_index' => $file_token_end_function_index,
+          'parameters' => $function_parameters,
           'called_functions' => $called_functions,
         );
 
@@ -268,13 +283,11 @@ class PHP_Parser {
       for ( $j = 0, $jcount = count( $this->files_functions[ $i ][ 'called_functions' ] ); $j < $jcount; $j++ ) {
         $called_function_name = $this->files_functions[ $i ][ 'called_functions' ][ $j ][ 'name' ];
         for ( $k = 0; $k < $count; $k++ ) {
-          if ( $this->files_functions[ $k ][ 'function_name' ] === $called_function_name ) {
+          if ( $this->files_functions[ $k ][ 'name' ] === $called_function_name ) {
             $this->files_functions[ $k ][ 'executed' ] = 'executed';
             break;
           }
         }
-        //add the function to the $used_functions array
-        $this->add_used_functions( $called_function_name );
       }
     }
   }
@@ -292,79 +305,79 @@ class PHP_Parser {
       }
     }
     if ( $i === $count ) {
-      $user_defined = 'not user defined';
+      $function_user_defined = 'not user defined';
       for ( $i = 0, $count = count( $this->files_functions ); $i < $count; $i++ ) {
-        if ( 0 === strcasecmp( $this->files_functions[ $i ][ 'function_name' ], $called_function_name ) ) {
-          $user_defined = 'user defined';
+        if ( 0 === strcasecmp( $this->files_functions[ $i ][ 'name' ], $called_function_name ) ) {
+          $function_user_defined = 'user defined';
           break;
         }
       }
 
-      $input = 'not input';
+      $function_input = 'not input';
       foreach ( Vulnerable_Input::$INPUT_FUNCTIONS as $key => $value ) {
         foreach ( $value as $output ) {
           //note: PHP functions are not case sensitive
           if ( 0 === strcasecmp( $output, $called_function_name ) ) {
-            $input = 'input';
+            $function_input = 'input';
             break;
           }
         }
       }
 
-      $output = 'not output';
+      $function_output = 'not output';
       $vulnerability = 'none';
       foreach ( Vulnerable_Output::$OUTPUT_FUNCTIONS as $key => $value ) {
         foreach ( $value as $output ) {
           //note: PHP functions are not case sensitive
           if ( 0 === strcasecmp( $output, $called_function_name ) ) {
-            $output = 'output';
+            $function_output = 'output';
             $vulnerability = $key;
             break;
           }
         }
       }
 
-      $filter = 'not filter';
+      $function_filter = 'not filter';
       foreach ( Vulnerable_Filter::$VARIABLE_FILTERS as $key => $value ) {
         foreach ( $value as $output ) {
           //note: PHP functions are not case sensitive
           if ( 0 === strcasecmp( $output, $called_function_name ) ) {
-            $filter = 'filter';
+            $function_filter = 'filter';
             break;
           }
         }
       }
 
-      $revert_filter = 'not revert filter';
+      $function_revert_filter = 'not revert filter';
       foreach ( Vulnerable_Filter::$REVERT_VARIABLE_FILTERS as $key => $value ) {
         foreach ( $value as $output ) {
           //note: PHP functions are not case sensitive
           if ( 0 === strcasecmp( $output, $called_function_name ) ) {
-            $revert_filter = 'revert filter';
+            $function_revert_filter = 'revert filter';
             break;
           }
         }
       }
 
-      $other = 'other';
-      if ( ('user defined' === $user_defined)
-          || ('input' === $input)
-          || ('output' === $output)
-          || ('filter' === $filter)
-          || ('revert filter' === $revert_filter)
+      $function_other = 'other';
+      if ( ('user defined' === $function_user_defined)
+          || ('input' === $function_input)
+          || ('output' === $function_output)
+          || ('filter' === $function_filter)
+          || ('revert filter' === $function_revert_filter)
       ) {
-        $other = 'not other';
+        $function_other = 'not other';
       }
 
       $this->used_functions[ ] = array(
         'name' => $called_function_name,
-        'user_defined' => $user_defined,
-        'input' => $input,
-        'output' => $output,
+        'user_defined' => $function_user_defined,
+        'input' => $function_input,
+        'output' => $function_output,
         'vulnerability' => $vulnerability,
-        'filter' => $filter,
-        'revert_filter' => $revert_filter,
-        'other' => $other,
+        'filter' => $function_filter,
+        'revert_filter' => $function_revert_filter,
+        'other' => $function_other,
       );
     }
   }
@@ -451,12 +464,14 @@ class PHP_Parser {
             || ( T_OBJECT_CAST === $token[ $i ][ 0 ] )
             || ( T_BOOL_CAST === $token[ $i ][ 0 ] )
             || ( T_UNSET_CAST === $token[ $i ][ 0 ] ) ) {
-          $i = $this->parse_function_method( $file_name, $function_name, $i );
+          $output_function = $this->parse_function_method( $file_name, $function_name, $i );
+          $i = $output_function[ 0 ];
 
 //function call
         } elseif ( ($this->is_function( $file_name, $i ))
             || ($this->is_method( $file_name, $i )) ) {
-          $i = $this->parse_function_method( $file_name, $function_name, $i );
+          $function_method = $this->parse_function_method( $file_name, $function_name, $i );
+          $i = $function_method[ 0 ];
 
 //function definition should be skipped because it is executed when called in the PHP code
         } elseif ( T_FUNCTION === $token[ $i ][ 0 ] ) {
@@ -612,16 +627,22 @@ class PHP_Parser {
 
     $expression = $this->parse_expression_vulnerability( $file_name, $function_name, $block_start_index, $block_as_index, null, null );
 
-    if ( is_null( $expression[ 'variable_dependencies_index' ] ) ) {
+    if ( is_null( $expression[ 'dependencies_index' ] ) ) {
       $this->parse_variable_property( $file_name, $function_name, $block_as_index + 1 );
     } else {
-      if ( ( is_array( $this->files->files_tokens[ $file_name ][ $block_start_index ] ) )
-          && ( ( $this->is_variable( $file_name, $block_start_index ) ) || ( $this->is_property( $file_name, $block_start_index ) ) ) ) {
+      //skip '(' characters
+      while ( '(' === $this->files->files_tokens[ $file_name ][ $block_start_index ] ) {
+        $block_start_index++;
+      }
+      if ( !is_array( $this->files->files_tokens[ $file_name ][ $block_start_index ] ) ) {
+        //TODO other characters that may exist
+      }
+
+      if ( ( $this->is_variable( $file_name, $block_start_index ) ) || ( $this->is_property( $file_name, $block_start_index ) ) ) {
         $v = $block_start_index;
         //$v is passed by reference
         $variable_before_as_name = $this->get_variable_property_complete_array_name( $file_name, $v );
-      } elseif ( ( is_array( $this->files->files_tokens[ $file_name ][ $block_start_index ] ) )
-          && ( ( $this->is_function( $file_name, $block_start_index ) ) || ( $this->is_method( $file_name, $block_start_index ) ) ) ) {
+      } elseif ( ( $this->is_function( $file_name, $block_start_index ) ) || ( $this->is_method( $file_name, $block_start_index ) ) ) {
         //TODO
         $v = $block_start_index;
         //$v is passed by reference
@@ -977,7 +998,7 @@ class PHP_Parser {
 // search for the code of the PHP user defined function
     for ( $i = 0, $count = count( $this->files_functions ); $i < $count; $i++ ) {
 //note: user defined PHP functions are not case sensitive
-      if ( 0 === strcasecmp( $called_function_name, $this->files_functions[ $i ][ 'function_name' ] ) ) {
+      if ( 0 === strcasecmp( $called_function_name, $this->files_functions[ $i ][ 'name' ] ) ) {
         $called_function_index = $i;
 // When the function is found in the the multi-dimensional array $this->files_functions
 // there is no need to continue searching for more because there is only one function with the same name
@@ -986,32 +1007,36 @@ class PHP_Parser {
 //there is no need for the else, because the function has to exist when arriving here
     }
 
+    $used_function_index = null;
     if ( !is_null( $called_function_index ) ) {
       //found the code of the PHP user defined function
       //so it is a PHP user defined function
       //if it is a user defined function test to see if it is already being parsed
       //should not parse functions with recursivity because it will never stop
       //if the function is not already being parsed then parse it
-      if ( (!is_array( $this->files_functions_stack )) || (!in_array( $called_function_index, $this->files_functions_stack )) ) {
+      if ( (!is_array( $this->functions_stack )) || (!in_array( $called_function_index, $this->functions_stack )) ) {
 
         //push the function to the stack
-        $this->files_functions_stack[ ] = $called_function_index;
+        $this->functions_stack[ ] = $called_function_index;
 
-        $this->parse_user_defined_function_method_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $called_function_name, $called_function_index );
+        $used_function_index = $this->parse_user_defined_function_method_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $called_function_name, $called_function_index );
 
         //pop the function from the stack
         //unset the $files_functions_stack but keep the indexes untouched
-        unset( $this->files_functions_stack[ count( $this->files_functions_stack ) - 1 ] );
+        unset( $this->functions_stack[ count( $this->functions_stack ) - 1 ] );
         //normalize the indexes
-        $this->files_functions_stack = array_values( $this->files_functions_stack );
+        $this->functions_stack = array_values( $this->functions_stack );
+      } else {
+        //the function is already being executed
       }
 
 //all other functions that are not defined in the parsed PHP files, like echo, print, exit
     } else {
-      $this->parse_other_function_method_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $called_function_name );
+      $used_function_index = $this->parse_other_function_method_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index, $called_function_name );
     }
 
-    return( $block_end_index);
+//    return( $block_end_index);
+    return( array( $block_end_index, $called_function_name, $used_function_index ));
   }
 
   /**
@@ -1069,6 +1094,7 @@ class PHP_Parser {
     }
 
     $block_start_index++;
+
     $this->parse_return_vulnerability( $file_name, $function_name, $block_start_index, $block_end_index );
 
     return($block_end_index);
@@ -1105,16 +1131,16 @@ class PHP_Parser {
   function parse_equal( $file_name, $function_name, $block_start_index ) {
     $this->debug( sprintf( "%s:%s:%s :: %s", __CLASS__, __METHOD__, __FUNCTION__, serialize( func_get_args() ) ) . '<br />' );
 
-//find the variable that is assigned something by searching backwards in the multi-dimensional array $files_tokens
+    //find the variable that is assigned something by searching backwards in the multi-dimensional array $files_tokens
     $variable_before_equal_name = null;
     $i = $block_start_index;
 
-//get the name of the assigned variable or method proterty (the one before the '=' sign)
+    //get the name of the assigned variable or method proterty (the one before the '=' sign)
     do {
       if ( ( is_array( $this->files->files_tokens[ $file_name ][ $i ] ) )
           && (( $this->is_variable( $file_name, $i ) ) || ( $this->is_property( $file_name, $i ) )) ) {
         $v = $i;
-//$v is passed by reference
+        //$v is passed by reference
         $variable_before_equal_name = $this->get_variable_property_complete_array_name( $file_name, $v );
       }
       $i--;
@@ -1430,6 +1456,16 @@ class PHP_Parser {
     return $i;
   }
 
+  /**
+   * Search for the function .
+   * If in between there are '(' '{' " ' it resumes the search only after the matching ')' '}' " '
+   *  
+   * @param string $file_name with the PHP file name that is going to be parsed
+   * @param string $block_start_index with the start index of tokens of the multi-dimensional array $files_tokens that is going to be parsed
+   * @param string $token with the token
+   * 
+   * @return int with the index of the end token in the multi-dimensional associative array $files_tokens
+   */
   function find_previous_containing_function_from_index( $file_name, $block_index ) {
     $function_name = null;
     $token = $this->files->files_tokens[ $file_name ];
@@ -1483,10 +1519,10 @@ class PHP_Parser {
     $function_name = 'function';
     if ( !empty( $this->files_functions ) ) {
       foreach ( $this->files_functions as $key => $value ) {
-        if ( ( $value[ 'file_name' ] === $file_name)
-            && ( $value[ 'file_tokens_start_index' ] <= $file_index)
-            && ( $value[ 'file_tokens_end_index' ] >= $file_index) ) {
-          $function_name = $value[ 'function_name' ];
+        if ( ( $value[ 'file' ] === $file_name)
+            && ( $value[ 'start_index' ] <= $file_index)
+            && ( $value[ 'end_index' ] >= $file_index) ) {
+          $function_name = $value[ 'name' ];
           //do not return here, because there may be a function definition inside a function definition
         }
       }
@@ -1507,8 +1543,8 @@ class PHP_Parser {
 //search for user defined functions in the multi-dimensional associative array $files_tokens
     if ( !empty( $this->files_functions ) ) {
       foreach ( $this->files_functions as $key => $value ) {
-        if ( ( $value[ 'file_name' ] === $file_name)
-            && ( $value[ 'function_name' ] === $function_name) ) {
+        if ( ( $value[ 'file' ] === $file_name)
+            && ( $value[ 'name' ] === $function_name) ) {
           return true;
         }
       }
@@ -1773,9 +1809,9 @@ class PHP_Parser {
               || ( T_BOOL_CAST === $token[ $file_index ][ 0 ] )
               || ( T_UNSET_CAST === $token[ $file_index ][ 0 ] )
           ) {
-            
+
             //strip all whitespace from name, like replacing ( int ) with (int)
-            $name=preg_replace('/\s+/', '', $name);
+            $name = preg_replace( '/\s+/', '', $name );
             return $name;
           } else {
             return null;
@@ -1973,9 +2009,9 @@ class PHP_Parser {
     for ( $i = $count - 1; $i >= 0; $i-- ) {
 
 //note: PHP functions are not case sensitive
-      if ( ( $variable_name === $this->parser_variables[ $i ][ 'variable_name' ] )
-          && (0 === strcasecmp( $this->parser_variables[ $i ][ 'file_name' ], $file_name ))
-          && (0 === strcasecmp( $this->parser_variables[ $i ][ 'function_name' ], $function_name ) ) ) {
+      if ( ( $variable_name === $this->parser_variables[ $i ][ 'name' ] )
+          && (0 === strcasecmp( $this->parser_variables[ $i ][ 'file' ], $file_name ))
+          && (0 === strcasecmp( $this->parser_variables[ $i ][ 'function' ], $function_name ) ) ) {
         return $i;
       }
     }
@@ -2042,7 +2078,7 @@ class PHP_Parser {
    * @param string $message with the debug message
    */
   function debug( $message ) {
-    $this->parser_debug[ ] = $message;
+//    $this->parser_debug[ ] = $message;
   }
 
 }

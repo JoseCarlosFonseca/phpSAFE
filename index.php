@@ -58,6 +58,7 @@ _END;
   echo "Security analysis of the file <b>" . $_POST[ 'php_file' ] . "</b><br /><br />";
   $time_start = microtime( true );
   $vulnerability_check = new PHP_SAFE( htmlspecialchars( $_POST[ 'php_file' ] ) );
+  $vulnerability_check->set_output_variables();
   if ( count( $vulnerability_check->get_files_tokens() ) > 0 ) {
     $time_end = microtime( true );
     $time = $time_end - $time_start;
