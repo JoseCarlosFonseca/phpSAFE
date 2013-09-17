@@ -59,6 +59,7 @@
 
       foreach ( $_POST[ 'rem' ] as $id ) {
         $wpdb->query( "delete from " . $wpdb->prefix . "sml where id = '" . $id . "' limit 1" );  //VULNERABILITY
+        $wpdb->query( "delete from " . $wpdb->prefix . "sml where id = '1' limit 1" );
         $count++;
       }
 
@@ -70,7 +71,7 @@
 
       echo "<br />Ola" . htmlentities( addslashes( $_POST[ 'user_secret' ] ) ) . "<br />";
 
-      echo "<br />Ola" . not_available( $_POST[ 'user_secret' ] ) . "<br />";
+      echo "<br />Ola" . also_not_available(not_available( $_POST[ 'user_secret' ] , $_POST[ 'user_password' ])) . "<br />";
 
       $poll = $this->pollDB->getPollDB( $id );
 

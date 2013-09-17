@@ -719,6 +719,8 @@ class PHP_Parser {
   /**
    * Parse if conditional statement. Currentely it only calls the function $this->main_parser.
    * 
+   * TODO parse differently the flow of the IF, ELSE, ELSEIF
+   * 
    * @param string $file_name with the PHP file name that is going to be parsed
    * @param string $function_name with the name of the function where the code is being executed.
    * if the code ise being executed outside any function this argument should take the value 'function', which is the default value.
@@ -733,11 +735,12 @@ class PHP_Parser {
         || (T_ELSEIF === $this->files->files_tokens[ $file_name ][ $block_start_index ][ 0 ]) ) {
 
       $block_end_index = $this->find_match( $file_name, $block_start_index, '(' );
-    } else {
-      $block_end_index = $block_start_index + 1;
+    }
+    // T_ELSE
+    else {
+      $block_end_index = $block_start_index;
     }
 
-    $aux = $block_end_index;
     //The alternate syntax
     if ( ':' === $this->files->files_tokens[ $file_name ][ $block_end_index + 1 ] ) {
       do {
@@ -747,7 +750,7 @@ class PHP_Parser {
 
       //if structure with {..}
     } elseif ( '{' === $this->files->files_tokens[ $file_name ][ $block_end_index + 1 ] ) {
-      $block_end_index = $this->find_match( $file_name, $block_start_index + 1, '{' );
+      $block_end_index = $this->find_match( $file_name, $block_end_index + 1, '{' );
 
       //if structure with just one line of code
     } else {
@@ -757,6 +760,7 @@ class PHP_Parser {
     $block_start_index++;
     $this->main_parser( $file_name, $function_name, $block_start_index, $block_end_index );
 
+    $this->debug( ' $block_end_index ' . $block_end_index . "<br />" );
     return( $block_end_index);
   }
 
