@@ -103,6 +103,7 @@ class Vulnerable_Output {
       //wp functions
       '$wpdb->query', //added by me
     ),
+    /*
     FILE_INCLUSION => array(
       'include',
       'include_once',
@@ -143,6 +144,7 @@ class Vulnerable_Output {
       'highlight_file',
       'imagecreatefrompng',
       'imagecreatefromjpg',
+      'imagecreatefromjepg', //added by me
       'imagecreatefromgif',
       'imagecreatefromgd2',
       'imagecreatefromgd2part',
@@ -371,6 +373,8 @@ class Vulnerable_Output {
       'unserialize',
       'is_a',
     )
+     * 
+     */
   );
 
 }
