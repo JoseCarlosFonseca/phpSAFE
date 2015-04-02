@@ -825,145 +825,64 @@ class PHP_Parser {
         || ("'" === substr( $file_name_include, 0, 1 ) ) ) {
       $file_name_include = substr( $file_name_include, 1, -1 );
     }
-    $include_require_name = $file_name_include;
     $file_name_include = $file_path . $file_name_include;
     $file_name_include = realpath( dirname( $file_name_include ) ) . DIRECTORY_SEPARATOR . basename( $file_name_include );
 
+    foreach ( $this->files->files_tokens as $key => $token ) {
 //only parse the file if it is in the multi-dimensional array variable $files_tokens
 //only analyze the included file if it has not been anayzed yet
-    if ( in_array( $file_name_include, $this->files->files_tokens ) ) {
+      if ( $file_name_include === $key ) {
 
 // get the ...ONCE attribute
-      if ( ( T_INCLUDE_ONCE === $this->files->files_tokens[ $file_name ][ $block_start_index ][ 0 ] )
-          || ( T_REQUIRE_ONCE === $this->files->files_tokens[ $file_name ][ $block_start_index ][ 0 ] ) ) {
-        $once = 'true';
-      } else {
-        $once = 'false';
-      }
-
 // get the INCLUDE.../REQUIRE... attribute    
-      if ( ( T_INCLUDE_ONCE === $this->files->files_tokens[ $file_name ][ $block_start_index ][ 0 ] )
-          || ( T_INCLUDE === $this->files->files_tokens[ $file_name ][ $block_start_index ][ 0 ] ) ) {
-        $include_require = 'include';
-      } else {
-        $include_require = 'require';
-      }
-
-      $yes_include_require = false;
-//store the include/require information int the multi-dimensional array variable $files_include_require
-      for ( $i = 0, $count = count( $this->files_include_require ); $i < $count; $i++ ) {
-//check if the included/required file has already been included
-        if ( ( $file_name_include === $this->files_include_require[ $i ][ 'include_require_file_name' ] )
-            && ($include_require === $this->files_include_require[ $i ][ 'include_require' ] )
-            && ($once === $this->files_include_require[ $i ][ 'once' ] ) ) {
-//the file has already been included/required once
-          $this->files_include_require[ $i ][ 'number_of_calls' ] +=1;
-//If is not a ...ONCE then it will be parsed every time
-          if ( 'false' === $once ) {
-            $this->files_include_require[ $i ][ 'number_of_calls_executed' ] +=1;
-            $yes_include_require = true;
-          }
-          break;
+        $token = $this->files->files_tokens[ $file_name ][ $block_start_index ][ 0 ];
+        if ( T_INCLUDE_ONCE === $token ) {
+          $once = 'true';
+          $include_require = 'include';
+        } elseif ( T_REQUIRE_ONCE === $token ) {
+          $once = 'true';
+          $include_require = 'require';
+        } elseif ( T_INCLUDE === $token ) {
+          $once = 'false';
+          $include_require = 'include';
+        } elseif ( T_REQUIRE === $token ) {
+          $once = 'false';
+          $include_require = 'require';
         }
-      }
+
+        $parse_again = false;
+//store the include/require information int the multi-dimensional array variable $files_include_require
+        for ( $i = 0, $count = count( $this->files_include_require ); $i < $count; $i++ ) {
+//check if the included/required file has already been included
+          if ( ( $file_name_include === $this->files_include_require[ $i ][ 'include_require_file_name' ] )
+              && ($include_require === $this->files_include_require[ $i ][ 'include_require' ] ) ) {
+//the file has already been included/required once
+            $this->files_include_require[ $i ][ 'number_of_calls' ] +=1;
+//If is not a ...ONCE then it will be parsed every time
+            if ( 'false' === $once ) {
+              $this->files_include_require[ $i ][ 'number_of_calls_executed' ] +=1;
+              $parse_again = true;
+            }
+            break;
+          }
+        }
 
 //if this include/require has not yet been processed then add it to the multi-dimensional array variable $files_include_require
-      if ( count( $this->files_include_require ) === $i ) {
-        $this->files_include_require[ ] = array(
-          'include_require_file_name' => $file_name_include,
-          'include_require_name' => $include_require_name,
-          'include_require' => $include_require,
-          'once' => $once,
-          'number_of_calls' => 1,
-          'number_of_calls_executed' => 1
-        );
-        $yes_include_require = true;
-      }
-
-//only parse the included/required file if it has not yet been parsed or it is not a ...ONCE file
-      if ( true === $yes_include_require ) {
-        $this->main_parser( $file_name_include, null, null, null );
-      }
-    }
-    return( $block_end_index);
-  }
-
-  function parse_include_require2( $file_name, $function_name, $block_start_index ) {
-    $this->debug( sprintf( "%s:%s:%s :: %s", __CLASS__, __METHOD__, __FUNCTION__, serialize( func_get_args() ) ) . '<br />' );
-
-    $block_end_index = $this->end_of_php_line( $file_name, $block_start_index );
-
-//if there is an '(' after the include, include_once, require, require_once
-    if ( '(' === $this->files->files_tokens[ $file_name ][ $block_start_index + 1 ] ) {
-      $file_name_include = $this->files->files_tokens[ $file_name ][ $block_start_index + 2 ][ 1 ];
-    } else {
-      $file_name_include = $this->files->files_tokens[ $file_name ][ $block_start_index + 1 ][ 1 ];
-    }
-
-//TODO use include_paths()  
-    $file_path = dirname( $file_name ) . DIRECTORY_SEPARATOR;
-
-    if ( ('"' === substr( $file_name_include, 0, 1 ) )
-        || ("'" === substr( $file_name_include, 0, 1 ) ) ) {
-      $file_name_include = substr( $file_name_include, 1, -1 );
-    }
-
-    $file_name = $file_path . $file_name_include;
-    $file_name = realpath( dirname( $file_name ) ) . DIRECTORY_SEPARATOR . basename( $file_name );
-
-//only parse the file if it is in the multi-dimensional array variable $files_tokens
-//only analyze the included file if it has not been anayzed yet
-    if ( in_array( $file_name, $this->files->files_tokens ) ) {
-// get the ...ONCE attribute
-      if ( ( T_INCLUDE_ONCE === $this->files->files_tokens[ $file_name ][ $block_start_index ][ 0 ] )
-          || ( T_REQUIRE_ONCE === $this->files->files_tokens[ $file_name ][ $block_start_index ][ 0 ] ) ) {
-        $once = 'true';
-      } else {
-        $once = 'false';
-      }
-
-// get the INCLUDE.../REQUIRE... attribute    
-      if ( ( T_INCLUDE_ONCE === $this->files->files_tokens[ $file_name ][ $block_start_index ][ 0 ] )
-          || ( T_INCLUDE === $this->files->files_tokens[ $file_name ][ $block_start_index ][ 0 ] ) ) {
-        $include_require = 'include';
-      } else {
-        $include_require = 'require';
-      }
-
-      $yes_include_require = false;
-//store the include/require information int the multi-dimensional array variable $files_include_require
-      for ( $i = 0, $count = count( $this->files_include_require ); $i < $count; $i++ ) {
-//check if the included/required file has already been included
-        if ( ( $file_name === $this->files_include_require[ $i ][ 'include_require_file_name' ] )
-            && ($include_require === $this->files_include_require[ $i ][ 'include_require' ] )
-            && ($once === $this->files_include_require[ $i ][ 'once' ] ) ) {
-//the file has already been included/required once
-          $this->files_include_require[ $i ][ 'number_of_calls' ] +=1;
-//If is not a ...ONCE then it will be parsed every time
-          if ( 'false' === $once ) {
-            $this->files_include_require[ $i ][ 'number_of_calls_executed' ] +=1;
-            $yes_include_require = true;
-          }
-          break;
+        if ( $count === $i ) {
+          $this->files_include_require[ ] = array(
+            'include_require_file_name' => $file_name_include,
+            'include_require' => $include_require,
+            'number_of_calls' => 1,
+            'number_of_calls_executed' => 1
+          );
+          $parse_again = true;
         }
-      }
-
-//if this include/require has not yet been processed then add it to the multi-dimensional array variable $files_include_require
-      if ( count( $this->files_include_require ) === $i ) {
-        $this->files_include_require[ ] = array(
-          'include_require_file_name' => $file_name,
-          'include_require_name' => $file_name_include,
-          'include_require' => $include_require,
-          'once' => $once,
-          'number_of_calls' => 1,
-          'number_of_calls_executed' => 1
-        );
-        $yes_include_require = true;
-      }
 
 //only parse the included/required file if it has not yet been parsed or it is not a ...ONCE file
-      if ( true === $yes_include_require ) {
-        $this->main_parser( $file_name, null, null, null );
+        if ( true === $parse_again ) {
+          $this->main_parser( $file_name_include, null, null, null );
+        }
+        break; //do not need to continue searching
       }
     }
     return( $block_end_index);
@@ -2082,7 +2001,7 @@ class PHP_Parser {
    * @param string $message with the debug message
    */
   function debug( $message ) {
-//    $this->parser_debug[ ] = $message;
+    $this->parser_debug[ ] = $message;
   }
 
 }

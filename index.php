@@ -26,7 +26,9 @@
  */
 require_once 'class-php-safe.php';
 
-ini_set( 'max_execution_time', 2400 ); //2400 seconds = 40 minutes
+//ini_set( 'max_execution_time', 2400 ); //2400 seconds = 40 minutes
+ini_set( 'memory_limit', -1 ); //-1 unlimited
+set_time_limit(0); //0 unlimited execution time
 
 echo "<!DOCTYPE html><title>" . APP . "</title><html><head>";
 echo "<br /><div class='main'><h2>" . APP . "</h2><br /><br />";
