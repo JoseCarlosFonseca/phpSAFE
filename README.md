@@ -11,6 +11,7 @@ It is also configured out of the box to verify the source code of WordPress plug
 
 Copyright (C) 2013, 2014, 2015 by Jose Fonseca (jozefonseca at gmail dot com)
 
+
 DSN2015 version
 
 Contributors
