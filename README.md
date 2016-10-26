@@ -21,5 +21,5 @@ Jose Fonseca (jozefonseca at gmail dot com)
 Paulo Nunes (pnunes at ipg dot pt)
 
 -------------------------------------------------------------------------------------------------
-ICSE 2017 data is in the file
+ICSE 2017 data is in the file ICSE data.txt
 -------------------------------------------------------------------------------------------------
