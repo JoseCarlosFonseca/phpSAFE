@@ -16,7 +16,7 @@ Post DSN2015 version
 
 Contributors
 
-Jose Fonseca (jozefonseca at gmail dot com)
+Jose Fonseca (josefonseca at ipg dot pt , jozefonseca at gmail dot com)
 
 Paulo Nunes (pnunes at ipg dot pt)
 
